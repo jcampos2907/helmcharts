@@ -1,0 +1,118 @@
+{{- /* Primary-only Web Service (targets sts ordinal 0) */ -}}
+{{- if or .Values.serviceWeb.http.enabled .Values.serviceWeb.https.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "pihole.fullname" . }}-web-primary
+  labels:
+    app: {{ template "pihole.name" . }}
+    app.kubernetes.io/name: {{ template "pihole.name" . }}
+    chart: {{ template "pihole.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+{{- if .Values.serviceWeb.extraLabels }}
+{{ toYaml .Values.serviceWeb.extraLabels | indent 2 }}
+{{- end }}
+{{- if .Values.serviceWeb.annotations }}
+  annotations:
+{{ toYaml .Values.serviceWeb.annotations | indent 4 }}
+{{- end }}
+spec:
+  # Keep consistent behavior with the "normal" web service
+  type: {{ .Values.serviceWeb.type }}
+  # Helpful during startup so the DNS/web waiters can see the endpoint early
+  publishNotReadyAddresses: true
+  {{- if and (.Values.dualStack.enabled) (not (eq .Values.serviceWeb.type "LoadBalancer")) }}
+  ipFamilies:
+  - IPv4
+  - IPv6
+  ipFamilyPolicy: PreferDualStack
+  {{- end }}
+  {{- if .Values.serviceWeb.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.serviceWeb.loadBalancerIP }}
+  {{- end }}
+  {{- if and (eq .Values.serviceWeb.type "LoadBalancer") .Values.serviceWeb.loadBalancerClass }}
+  loadBalancerClass: {{ .Values.serviceWeb.loadBalancerClass }}
+  {{- end }}
+  {{- if or (eq .Values.serviceWeb.type "NodePort") (eq .Values.serviceWeb.type "LoadBalancer") }}
+  externalTrafficPolicy: {{ .Values.serviceWeb.externalTrafficPolicy }}
+  {{- end }}
+  ports:
+    {{- if .Values.serviceWeb.http.enabled }}
+    - name: http
+      port: {{ .Values.serviceWeb.http.port }}
+      targetPort: http
+      protocol: TCP
+      {{- if and (.Values.serviceWeb.http.nodePort) (eq .Values.serviceWeb.type "NodePort") }}
+      nodePort: {{ .Values.serviceWeb.http.nodePort }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.serviceWeb.https.enabled }}
+    - name: https
+      port: {{ .Values.serviceWeb.https.port }}
+      targetPort: https
+      protocol: TCP
+      {{- if and (.Values.serviceWeb.https.nodePort) (eq .Values.serviceWeb.type "NodePort") }}
+      nodePort: {{ .Values.serviceWeb.https.nodePort }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.doh.enabled }}
+    - name: cloudflared-met
+      port: 49312
+      protocol: TCP
+    {{- end }}
+  selector:
+    # Pin ONLY the primary pod of the StatefulSet
+    statefulset.kubernetes.io/pod-name: {{ include "pihole.fullname" . }}-0
+---
+{{- if and (.Values.dualStack.enabled) (eq .Values.serviceWeb.type "LoadBalancer") -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "pihole.fullname" . }}-web-primary-ipv6
+  labels:
+    app: {{ template "pihole.name" . }}
+    app.kubernetes.io/name: {{ template "pihole.name" . }}
+    chart: {{ template "pihole.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+{{- if .Values.serviceWeb.annotations }}
+  annotations:
+{{ toYaml .Values.serviceWeb.annotations | indent 4 }}
+{{- end }}
+spec:
+  type: {{ .Values.serviceWeb.type }}
+  ipFamilies:
+  - IPv6
+  ipFamilyPolicy: SingleStack
+  {{- if .Values.serviceWeb.loadBalancerIPv6 }}
+  loadBalancerIP: {{ .Values.serviceWeb.loadBalancerIPv6 }}
+  {{- end }}
+  {{- if and (eq .Values.serviceWeb.type "LoadBalancer") .Values.serviceWeb.loadBalancerClass }}
+  loadBalancerClass: {{ .Values.serviceWeb.loadBalancerClass }}
+  {{- end }}
+  {{- if or (eq .Values.serviceWeb.type "NodePort") (eq .Values.serviceWeb.type "LoadBalancer") }}
+  externalTrafficPolicy: {{ .Values.serviceWeb.externalTrafficPolicy }}
+  {{- end }}
+  ports:
+    {{- if .Values.serviceWeb.http.enabled }}
+    - name: http
+      port: {{ .Values.serviceWeb.http.port }}
+      targetPort: http
+      protocol: TCP
+    {{- end }}
+    {{- if .Values.serviceWeb.https.enabled }}
+    - name: https
+      port: {{ .Values.serviceWeb.https.port }}
+      targetPort: https
+      protocol: TCP
+    {{- end }}
+    {{- if .Values.doh.enabled }}
+    - name: cloudflared-met
+      port: 49312
+      protocol: TCP
+    {{- end }}
+  selector:
+    statefulset.kubernetes.io/pod-name: {{ include "pihole.fullname" . }}-0
+{{- end }}
+{{- end }}

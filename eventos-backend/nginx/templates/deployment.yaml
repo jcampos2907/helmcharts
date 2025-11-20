@@ -1,0 +1,56 @@
+# templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eventos-backend.fullname" . }}
+  labels:
+    app: {{ include "eventos-backend.name" . }}
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "eventos-backend.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "eventos-backend.name" . }}
+      annotations:
+        checksum/image-force-update: "{{ now | unixEpoch }}-{{ .Values.image.forceUpdate | default "0" }}"
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 80
+          envFrom:
+            - secretRef:
+                name: {{ .Values.envSecretName }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /up
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /up
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - "/bin/sh"
+                  - "-c"
+                  - |
+                    # Clear and cache Laravel configuration at startup
+                    php artisan config:clear && \
+                    php artisan config:cache && \
+                    php artisan route:cache && \
+                    php artisan view:cache && \
+                    php artisan event:cache

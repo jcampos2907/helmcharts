@@ -1,0 +1,25 @@
+{{- if .Values.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eventos-backend.fullname" . }}-worker
+spec:
+  replicas: {{ .Values.worker.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "eventos-backend.name" . }}-worker
+  template:
+    metadata:
+      labels:
+        app: {{ include "eventos-backend.name" . }}-worker
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh", "-c", "php artisan queue:work --sleep=3 --tries=3 --timeout=90"]
+          envFrom:
+            - secretRef:
+                name: {{ .Values.envSecretName }}
+{{- end }}

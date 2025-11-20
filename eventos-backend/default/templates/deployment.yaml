@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eventos-backend.fullname" . }}
+  labels:
+    app: {{ include "eventos-backend.name" . }}
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "eventos-backend.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "eventos-backend.name" . }}
+      annotations:
+        {{- if .Values.reloader.enabled }}
+        reloader.stakater.com/auto: "true"
+        {{- end }}
+        checksum/image-force-update: "{{ now | unixEpoch }}-{{ .Values.image.forceUpdate | default "0" }}"
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      initContainers:
+      - name: artisan-setup
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        workingDir: /app
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            mkdir -p storage/framework/views && \
+            php artisan config:clear && \
+            php artisan config:cache && \
+            php artisan route:cache && \
+            php artisan view:cache && \
+            php artisan event:cache 
+        env:
+            {{- range .Values.envSecrets.fromKeyRefs }}
+            - name: {{ .envVar }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .key }}
+            {{- end }}
+
+        envFrom:
+          {{- range .Values.envSecrets.fromSecretRefs }}
+          - secretRef:
+              name: {{ . }}
+          {{- end }}
+        volumeMounts:
+          - name: storage
+            mountPath: /app/storage
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 80
+          env:
+            {{- range .Values.envSecrets.fromKeyRefs }}
+            - name: {{ .envVar }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .key }}
+            {{- end }}
+
+
+          envFrom:
+            {{- range .Values.envSecrets.fromSecretRefs }}
+            - secretRef:
+                name: {{ . }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /up
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /up
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: storage
+              mountPath: /app/storage
+      volumes:
+        - name: storage
+          emptyDir: {}

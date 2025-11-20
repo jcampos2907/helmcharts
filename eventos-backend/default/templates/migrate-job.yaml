@@ -1,0 +1,38 @@
+{{- if .Values.migrateJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "eventos-backend.fullname" . }}-migrate
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ include "eventos-backend.name" . }}-migrate
+      annotations:
+        checksum/image-force-update: "{{ now | unixEpoch }}-{{ .Values.image.forceUpdate | default "0" }}"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh", "-c", "php artisan migrate --force"]
+          env:
+            {{- range .Values.envSecrets.fromKeyRefs }}
+            - name: {{ .envVar }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .key }}
+            {{- end }}
+
+          envFrom:
+            {{- range .Values.envSecrets.fromSecretRefs }}
+            - secretRef:
+                name: {{ . }}
+            {{- end }}
+{{- end }}

@@ -1,0 +1,11 @@
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: {{ include "eventos-backend.fullname" . }}-storage
+# spec:
+#   accessModes:
+#     - ReadWriteMany  # ✅ must be RWX
+#   resources:
+#     requests:
+#       storage: 5Gi
+#   storageClassName: longhorn  # or your custom Longhorn RWX class if defined

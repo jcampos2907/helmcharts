@@ -1,0 +1,41 @@
+backend:
+  replicaCount: 2  # Scalable backend pods
+
+image:
+  repository: jicamposr/eventos-backend
+  tag: latest
+  pullPolicy: Always
+  forceUpdate: null # Optional timestamp to force redeploy
+
+serviceAccount:
+  create: true
+  name: eventos-service-account
+
+envSecretName: eventos-env-secret
+
+resources:
+  limits:
+    cpu: 2000m    # 2 CPU cores
+    memory: 4Gi   # 4GB RAM
+  requests:
+    cpu: 500m     # Increased requests as well for better QoS
+    memory: 1Gi   # Increased memory request
+
+worker:
+  enabled: false
+  replicaCount: 1
+
+migrateJob:
+  enabled: true
+
+ingress:
+  enabled: true
+  host: api2.specialized.co.cr
+  className: traefik
+  path: /
+  annotations:
+    traefik.ingress.kubernetes.io/rewrite-target: /
+    traefik.ingress.kubernetes.io/secure-redirect: "true"
+  tls:
+    enabled: true
+    secretName: api-certificate-secret

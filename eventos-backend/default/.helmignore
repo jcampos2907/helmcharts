@@ -1,0 +1,5 @@
+charts/index.yaml
+*.log
+*.tmp
+*.swp
+.DS_Store

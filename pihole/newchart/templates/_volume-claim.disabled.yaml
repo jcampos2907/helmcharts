@@ -1,0 +1,27 @@
+{{- /* templates/pvc.yaml */ -}}
+{{- $p := .Values.persistence | default (dict) -}}
+{{- if $p.enabled | default true -}}
+{{- $claimName := default (printf "%s-data" (include "pihole.fullname" .)) $p.claimName -}}
+{{- $existing := (lookup "v1" "PersistentVolumeClaim" .Release.Namespace $claimName) -}}
+
+{{- if not $existing }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $claimName }}
+  labels:
+    app.kubernetes.io/part-of: {{ template "pihole.name" . }}
+{{- if $p.keepOnUninstall }}
+  annotations:
+    helm.sh/resource-policy: keep
+{{- end }}
+spec:
+  accessModes: {{ toYaml (default (list "ReadWriteOnce") $p.accessModes) | nindent 2 }}
+  resources:
+    requests:
+      storage: {{ default "1Gi" $p.size | quote }}
+  storageClassName: {{ default "longhorn" $p.storageClass | quote }}
+{{- else }}
+# Skipping PVC creation: found existing claim {{ $claimName }} in namespace {{ .Release.Namespace }}
+{{- end }}
+{{- end }}
