@@ -10,12 +10,12 @@ nebulaSync:
   password: ''                   # <- required unless allowEmptyPassword=true
   allowEmptyPassword: true     # <- permits blank
   imagePullPolicy: IfNotPresent
-  cron: "*/15 * * * *"
+  cron: "0 0 * * *"
   # Port Pi-hole admin listens on (for host:port). Default 80.
   primary:
     port: 80
   # If your nebula-sync needs Pi-hole password/token:
-  fullSync: false            # <— REQUIRED by the image
+  fullSync: true            # <— REQUIRED by the image
   runGravity: false          # optional but common
   # Additional envs to drive its internal scheduler:
   env:
