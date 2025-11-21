@@ -12,5 +12,5 @@ sources:
   - https://github.com/pi-hole/docker-pi-hole
 icon: https://wp-cdn.pi-hole.net/wp-content/uploads/2016/12/Vortex-R.png
 maintainers:
-  - name: MoJo2600
-    email: christian.erhardt@mojo2k.de
+  - name: jcampos2907
+    email: nacho.campos29@gmail.com
