@@ -11,13 +11,13 @@ pipeline {
   }
 
   stages {
-           stage('Checkout') {
-            steps {
-                retry(3) {
-                    checkout scm
-                }
-            }
-        }
+stage('Checkout') {
+  steps {
+    git credentialsId: 'github-pat',
+        url: 'https://github.com/jcampos2907/helmcharts.git',
+        branch: 'main'
+  }
+}
     // stage('Checkout source') {
     //   steps {
     //     checkout scm
