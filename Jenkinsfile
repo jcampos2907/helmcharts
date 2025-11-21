@@ -91,11 +91,11 @@ pipeline {
 
     if [ -f charts/index.yaml ]; then
       helm repo index charts \
-        --url "https://${CHARTS_REPO_OWNER}.github.io/${CHARTS_REPO_NAME}/charts" \
+        --url "https://${CHARTS_REPO_OWNER}.github.io/charts" \
         --merge charts/index.yaml
     else
       helm repo index charts \
-        --url "https://${CHARTS_REPO_OWNER}.github.io/${CHARTS_REPO_NAME}/charts"
+        --url "https://${CHARTS_REPO_OWNER}.github.io/charts"
     fi
 
     git add charts
