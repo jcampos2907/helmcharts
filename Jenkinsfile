@@ -6,7 +6,7 @@ pipeline {
 
     // 🧩 CHANGE THESE TO YOUR REAL VALUES:
     CHARTS_REPO_OWNER  = "jcampos2907"       // e.g. "jcampos2907"
-    CHARTS_REPO_NAME   = "githubPages"       // repo that will host index.yaml + .tgz
+    CHARTS_REPO_NAME   = "jcampos2907.github.io"       // repo that will host index.yaml + .tgz
     CHARTS_REPO_BRANCH = "main"              // or "gh-pages" if you use that
   }
 
