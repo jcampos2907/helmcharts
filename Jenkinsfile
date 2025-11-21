@@ -68,38 +68,41 @@ pipeline {
       steps {
         // Put local helm on PATH for this stage too
         withEnv(["PATH=${env.WORKSPACE}/.bin:${env.PATH}"]) {
-          withCredentials([string(credentialsId: 'github-pat', variable: 'GH_PAT')]) {
-            sh '''
-              set -euo pipefail
+          withCredentials([usernamePassword(
+  credentialsId: 'github-pat',
+  usernameVariable: 'GH_USER',
+  passwordVariable: 'GH_PAT'
+)]) {
+  sh '''
+    set -euo pipefail
 
-              git config --global user.name  "jenkins"
-              git config --global user.email "jenkins@local"
+    git config --global user.name  "jenkins"
+    git config --global user.email "jenkins@local"
 
-              CHARTS_REPO_URL="https://${GH_PAT}@github.com/${CHARTS_REPO_OWNER}/${CHARTS_REPO_NAME}.git"
+    CHARTS_REPO_URL="https://${GH_USER}:${GH_PAT}@github.com/${CHARTS_REPO_OWNER}/${CHARTS_REPO_NAME}.git"
 
-              rm -rf gh-pages-repo
-              git clone "$CHARTS_REPO_URL" gh-pages-repo
+    rm -rf gh-pages-repo
+    git clone "$CHARTS_REPO_URL" gh-pages-repo
 
-              mkdir -p gh-pages-repo/charts
-              cp dist/*.tgz gh-pages-repo/charts/
+    mkdir -p gh-pages-repo/charts
+    cp dist/*.tgz gh-pages-repo/charts/
 
-              cd gh-pages-repo
+    cd gh-pages-repo
 
-              # regenerate/merge index.yaml
-              if [ -f charts/index.yaml ]; then
-                helm repo index charts \
-                  --url "https://${CHARTS_REPO_OWNER}.github.io/${CHARTS_REPO_NAME}/charts" \
-                  --merge charts/index.yaml
-              else
-                helm repo index charts \
-                  --url "https://${CHARTS_REPO_OWNER}.github.io/${CHARTS_REPO_NAME}/charts"
-              fi
+    if [ -f charts/index.yaml ]; then
+      helm repo index charts \
+        --url "https://${CHARTS_REPO_OWNER}.github.io/${CHARTS_REPO_NAME}/charts" \
+        --merge charts/index.yaml
+    else
+      helm repo index charts \
+        --url "https://${CHARTS_REPO_OWNER}.github.io/${CHARTS_REPO_NAME}/charts"
+    fi
 
-              git add charts
-              git commit -m "Update Helm charts from ${JOB_NAME}@${BUILD_NUMBER}" || echo "No changes to commit"
-              git push origin ${CHARTS_REPO_BRANCH}
-            '''
-          }
+    git add charts
+    git commit -m "Update Helm charts from ${JOB_NAME}@${BUILD_NUMBER}" || echo "No changes to commit"
+    git push origin ${CHARTS_REPO_BRANCH}
+  '''
+}
         }
       }
     }
