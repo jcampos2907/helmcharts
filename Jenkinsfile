@@ -11,11 +11,18 @@ pipeline {
   }
 
   stages {
-    stage('Checkout source') {
-      steps {
-        checkout scm
-      }
-    }
+           stage('Checkout') {
+            steps {
+                retry(3) {
+                    checkout scm
+                }
+            }
+        }
+    // stage('Checkout source') {
+    //   steps {
+    //     checkout scm
+    //   }
+    // }
 
     stage('Install Helm') {
       steps {
