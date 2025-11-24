@@ -15,7 +15,7 @@ spec:
     tty: true
 
   - name: git
-    image: alpine/git:2.47.3            # small image with git + sh
+    image: jicamposr/git:2.52.0            # small image with git + sh
     command: ["sh", "-c", "sleep infinity"]
     tty: true
 """
