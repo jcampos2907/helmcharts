@@ -1,13 +1,31 @@
 pipeline {
-  agent any
+  agent {
+    kubernetes {
+      defaultContainer "jnlp"
+      yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  imagePullSecrets:
+    - name: regcred
+  containers:
+  - name: helm
+    image: jicamposr/helm:v3.16.4        # your custom helm image
+    command: ["sh", "-c", "sleep infinity"]
+    tty: true
+
+  - name: git
+    image: alpine/git:2.47.3            # small image with git + sh
+    command: ["sh", "-c", "sleep infinity"]
+    tty: true
+"""
+    }
+  }
 
   environment {
-    HELM_VERSION       = "3.15.0"
-
-    // 🧩 CHANGE THESE TO YOUR REAL VALUES:
-    CHARTS_REPO_OWNER  = "jcampos2907"       // e.g. "jcampos2907"
-    CHARTS_REPO_NAME   = "jcampos2907.github.io"       // repo that will host index.yaml + .tgz
-    CHARTS_REPO_BRANCH = "main"              // or "gh-pages" if you use that
+    CHARTS_REPO_OWNER  = "jcampos2907"
+    CHARTS_REPO_NAME   = "jcampos2907.github.io"
+    CHARTS_REPO_BRANCH = "main"
   }
 
   stages {
@@ -19,37 +37,15 @@ pipeline {
       }
     }
 
-    stage('Install Helm') {
-      steps {
-        sh '''
-          set -euo pipefail
-
-          mkdir -p .bin
-          echo "Installing helm v${HELM_VERSION} locally..."
-
-          curl -sSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" -o helm.tgz
-          tar -xzf helm.tgz
-          mv linux-amd64/helm .bin/helm
-          chmod +x .bin/helm
-
-          rm -rf linux-amd64 helm.tgz
-
-          echo "Helm installed at $(pwd)/.bin/helm"
-          ./.bin/helm version
-        '''
-      }
-    }
-
     stage('Package Helm charts') {
       steps {
-        // Put local helm on PATH for this stage
-        withEnv(["PATH=${env.WORKSPACE}/.bin:${env.PATH}"]) {
+        container('helm') {
           sh '''
             set -euo pipefail
 
+            helm version
             mkdir -p dist
 
-            # find nested Chart.yaml, eg: pihole/newchart, eventos-backend/something
             find . -mindepth 2 -maxdepth 5 -name Chart.yaml -print | while read chart; do
               chart_dir=$(dirname "$chart")
               echo "==> Packaging chart at $chart_dir"
@@ -66,43 +62,58 @@ pipeline {
 
     stage('Publish to githubPages repo') {
       steps {
-        // Put local helm on PATH for this stage too
-        withEnv(["PATH=${env.WORKSPACE}/.bin:${env.PATH}"]) {
-          withCredentials([usernamePassword(
-  credentialsId: 'github-pat',
-  usernameVariable: 'GH_USER',
-  passwordVariable: 'GH_PAT'
-)]) {
-  sh '''
-    set -euo pipefail
+        withCredentials([usernamePassword(
+          credentialsId: 'github-pat',
+          usernameVariable: 'GH_USER',
+          passwordVariable: 'GH_PAT'
+        )]) {
 
-    git config --global user.name  "jenkins"
-    git config --global user.email "jenkins@local"
+          // 1) Git-only: clone gh-pages repo + copy tgz
+          container('git') {
+            sh '''
+              set -euo pipefail
 
-    CHARTS_REPO_URL="https://${GH_USER}:${GH_PAT}@github.com/${CHARTS_REPO_OWNER}/${CHARTS_REPO_NAME}.git"
+              git config --global user.name  "jenkins"
+              git config --global user.email "jenkins@local"
 
-    rm -rf gh-pages-repo
-    git clone "$CHARTS_REPO_URL" gh-pages-repo
+              CHARTS_REPO_URL="https://${GH_USER}:${GH_PAT}@github.com/${CHARTS_REPO_OWNER}/${CHARTS_REPO_NAME}.git"
 
-    mkdir -p gh-pages-repo/charts
-    cp dist/*.tgz gh-pages-repo/charts/
+              rm -rf gh-pages-repo
+              git clone "$CHARTS_REPO_URL" gh-pages-repo
 
-    cd gh-pages-repo
+              mkdir -p gh-pages-repo/charts
+              cp -f dist/*.tgz gh-pages-repo/charts/
+            '''
+          }
 
-    if [ -f charts/index.yaml ]; then
-      helm repo index charts \
-        --url "https://${CHARTS_REPO_OWNER}.github.io/charts" \
-        --merge charts/index.yaml
-    else
-      helm repo index charts \
-        --url "https://${CHARTS_REPO_OWNER}.github.io/charts"
-    fi
+          // 2) Helm-only: (re)generate index.yaml inside repo
+          container('helm') {
+            sh '''
+              set -euo pipefail
+              cd gh-pages-repo
 
-    git add charts
-    git commit -m "Update Helm charts from ${JOB_NAME}@${BUILD_NUMBER}" || echo "No changes to commit"
-    git push origin ${CHARTS_REPO_BRANCH}
-  '''
-}
+              if [ -f charts/index.yaml ]; then
+                helm repo index charts \
+                  --url "https://${CHARTS_REPO_OWNER}.github.io/charts" \
+                  --merge charts/index.yaml
+              else
+                helm repo index charts \
+                  --url "https://${CHARTS_REPO_OWNER}.github.io/charts"
+              fi
+            '''
+          }
+
+          // 3) Git-only: commit + push changes
+          container('git') {
+            sh '''
+              set -euo pipefail
+              cd gh-pages-repo
+
+              git add charts
+              git commit -m "Update Helm charts from ${JOB_NAME}@${BUILD_NUMBER}" || echo "No changes to commit"
+              git push origin ${CHARTS_REPO_BRANCH}
+            '''
+          }
         }
       }
     }
