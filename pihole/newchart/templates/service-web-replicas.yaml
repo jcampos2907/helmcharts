@@ -1,0 +1,23 @@
+# service-web-replicas.yaml
+{{- $replicaCount := int .Values.replicaCount }}
+{{- range $i := until $replicaCount }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pihole.fullname" $ }}-web-{{ $i }}
+  labels:
+    {{- include "pihole.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: web-ui
+    statefulset.kubernetes.io/pod-name: {{ include "pihole.fullname" $ }}-{{ $i }}
+spec:
+  type: {{ $.Values.service.web.type | default "ClusterIP" }}
+  ports:
+    - port: {{ $.Values.service.web.port | default 80 }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "pihole.selectorLabels" $ | nindent 4 }}
+    statefulset.kubernetes.io/pod-name: {{ include "pihole.fullname" $ }}-{{ $i }}
+{{- end }}
