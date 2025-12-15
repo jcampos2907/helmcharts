@@ -37,3 +37,26 @@ Default password secret name.
 {{- define "pihole.password-secret" -}}
 {{- printf "%s-%s" (include "pihole.fullname" .) "password" | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
+
+
+{{/*
+Common labels
+*/}}
+{{- define "pihole.labels" -}}
+helm.sh/chart: {{ include "pihole.chart" . }}
+app.kubernetes.io/name: {{ include "pihole.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- with .Chart.AppVersion }}
+app.kubernetes.io/version: {{ . | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Selector labels
+*/}}
+{{- define "pihole.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "pihole.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+

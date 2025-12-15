@@ -1,5 +1,10 @@
-# service-web-replicas.yaml
-{{- $replicaCount := int .Values.replicaCount }}
+{{- $replicaCount := int .Values.replicaCount -}}
+
+{{- $service := (get .Values "service" | default dict) -}}
+{{- $web := (get $service "web" | default dict) -}}
+{{- $svcType := (get $web "type" | default "ClusterIP") -}}
+{{- $svcPort := (get $web "port" | default 80) -}}
+
 {{- range $i := until $replicaCount }}
 ---
 apiVersion: v1
@@ -11,9 +16,9 @@ metadata:
     app.kubernetes.io/component: web-ui
     statefulset.kubernetes.io/pod-name: {{ include "pihole.fullname" $ }}-{{ $i }}
 spec:
-  type: {{ $.Values.service.web.type | default "ClusterIP" }}
+  type: {{ $svcType }}
   ports:
-    - port: {{ $.Values.service.web.port | default 80 }}
+    - port: {{ $svcPort }}
       targetPort: http
       protocol: TCP
       name: http
