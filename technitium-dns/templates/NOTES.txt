@@ -33,3 +33,37 @@ Technitium DNS Server has been deployed!
 {{- if and .Values.admin.enabled (not .Values.admin.existingSecret) .Values.admin.password }}
    NOTE: An admin password was set via Helm values.
 {{- end }}
+{{- if and .Values.clustering.enabled (gt (int .Values.replicaCount) 1) }}
+
+4. CLUSTERING SETUP REQUIRED:
+  You have {{ .Values.replicaCount }} replicas with clustering enabled.
+  After all pods are running, you must configure clustering via the web console.
+
+  a) Access the PRIMARY node (pod-0) web console:
+     kubectl port-forward --namespace {{ .Release.Namespace }} pod/{{ include "technitium-dns.fullname" . }}-0 {{ .Values.webConsole.httpsPort }}:{{ .Values.webConsole.httpsPort }}
+     Then visit: https://localhost:{{ .Values.webConsole.httpsPort }}
+     (Or use the primary service: {{ include "technitium-dns.fullname" . }}-web-primary)
+
+  b) On the primary node (pod-0), go to Settings > Clustering and initialize
+     the cluster. This will create the cluster zone and TSIG key.
+
+  c) Copy the TSIG key name, shared secret, and cluster domain from the primary.
+
+  d) Access each SECONDARY node web console:
+     {{- $fullname := include "technitium-dns.fullname" . }}
+     {{- range $i := until (int .Values.replicaCount) }}
+     {{- if ne $i 0 }}
+     kubectl port-forward --namespace {{ $.Release.Namespace }} pod/{{ $fullname }}-{{ $i }} {{ $.Values.webConsole.httpsPort }}:{{ $.Values.webConsole.httpsPort }}
+     {{- end }}
+     {{- end }}
+
+  e) On each secondary, go to Settings > Clustering and join the cluster
+     using the TSIG key and cluster domain from step (c).
+     Set the primary address to:
+       {{ include "technitium-dns.fullname" . }}-0.{{ include "technitium-dns.fullname" . }}-headless.{{ .Release.Namespace }}.svc.cluster.local
+
+  Pod FQDNs for reference:
+  {{- range $i := until (int .Values.replicaCount) }}
+    {{ $fullname }}-{{ $i }}.{{ $fullname }}-headless.{{ $.Release.Namespace }}.svc.cluster.local
+  {{- end }}
+{{- end }}

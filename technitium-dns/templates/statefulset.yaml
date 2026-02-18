@@ -30,6 +30,44 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if and .Values.clustering.enabled .Values.clustering.podAntiAffinity (gt (int .Values.replicaCount) 1) }}
+      affinity:
+        {{- with .Values.affinity }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "technitium-dns.selectorLabels" . | nindent 20 }}
+                topologyKey: kubernetes.io/hostname
+      {{- else }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- end }}
+      {{- if and .Values.clustering.enabled .Values.clustering.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml .Values.clustering.topologySpreadConstraints | nindent 8 }}
+      {{- end }}
+      {{- if .Values.clustering.enabled }}
+      initContainers:
+        - name: set-dns-domain
+          image: "busybox:1.36"
+          command:
+            - sh
+            - -c
+            - |
+              HEADLESS_SVC="{{ include "technitium-dns.fullname" . }}-headless.{{ .Release.Namespace }}.svc.cluster.local"
+              POD_FQDN="${HOSTNAME}.${HEADLESS_SVC}"
+              echo "${POD_FQDN}" > /etc/dns-domain/domain
+          volumeMounts:
+            - name: dns-domain
+              mountPath: /etc/dns-domain
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           {{- with .Values.securityContext }}
@@ -38,9 +76,19 @@ spec:
           {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.clustering.enabled }}
+          command:
+            - sh
+            - -c
+            - |
+              export DNS_SERVER_DOMAIN=$(cat /etc/dns-domain/domain)
+              exec dotnet /opt/technitium/dns/DnsServerApp.dll
+          {{- end }}
           env:
+            {{- if not .Values.clustering.enabled }}
             - name: DNS_SERVER_DOMAIN
               value: {{ .Values.serverDomain | quote }}
+            {{- end }}
             {{- if and .Values.admin.enabled .Values.admin.password }}
             - name: DNS_SERVER_ADMIN_PASSWORD
               valueFrom:
@@ -58,15 +106,13 @@ spec:
               value: {{ .Values.dnsConfig.preferIPv6 | quote }}
             - name: DNS_SERVER_WEB_SERVICE_HTTP_PORT
               value: {{ .Values.webConsole.httpPort | quote }}
-            {{- if .Values.webConsole.enableHttps }}
+            {{- if or .Values.webConsole.enableHttps .Values.clustering.enabled }}
             - name: DNS_SERVER_WEB_SERVICE_ENABLE_HTTPS
               value: "true"
             - name: DNS_SERVER_WEB_SERVICE_HTTPS_PORT
               value: {{ .Values.webConsole.httpsPort | quote }}
-            {{- if .Values.webConsole.useSelfSignedCert }}
             - name: DNS_SERVER_WEB_SERVICE_USE_SELF_SIGNED_CERT
               value: "true"
-            {{- end }}
             {{- end }}
             {{- if .Values.webConsole.localAddresses }}
             - name: DNS_SERVER_WEB_SERVICE_LOCAL_ADDRESSES
@@ -114,7 +160,7 @@ spec:
             - name: web-http
               containerPort: {{ .Values.webConsole.httpPort }}
               protocol: TCP
-            {{- if .Values.webConsole.enableHttps }}
+            {{- if or .Values.webConsole.enableHttps .Values.clustering.enabled }}
             - name: web-https
               containerPort: {{ .Values.webConsole.httpsPort }}
               protocol: TCP
@@ -150,17 +196,22 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/dns
+            {{- if .Values.clustering.enabled }}
+            - name: dns-domain
+              mountPath: /etc/dns-domain
+            {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
-      affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.clustering.enabled }}
+      volumes:
+        - name: dns-domain
+          emptyDir: {}
       {{- end }}
   {{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
   volumeClaimTemplates:
@@ -184,7 +235,7 @@ spec:
         - name: config
           persistentVolumeClaim:
             claimName: {{ .Values.persistence.existingClaim }}
-  {{- else }}
+  {{- else if not .Values.clustering.enabled }}
       volumes:
         - name: config
           emptyDir: {}

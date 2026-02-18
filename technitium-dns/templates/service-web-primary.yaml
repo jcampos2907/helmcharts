@@ -1,7 +1,8 @@
+{{- if and .Values.clustering.enabled (gt (int .Values.replicaCount) 1) }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "technitium-dns.fullname" . }}-web
+  name: {{ include "technitium-dns.fullname" . }}-web-primary
   labels:
     {{- include "technitium-dns.labels" . | nindent 4 }}
   {{- with .Values.serviceWeb.annotations }}
@@ -21,11 +22,11 @@ spec:
       {{- if and (eq .Values.serviceWeb.type "NodePort") .Values.serviceWeb.nodePort }}
       nodePort: {{ .Values.serviceWeb.nodePort }}
       {{- end }}
-    {{- if or .Values.webConsole.enableHttps .Values.clustering.enabled }}
     - name: web-https
       port: {{ .Values.serviceWeb.httpsPort }}
       targetPort: web-https
       protocol: TCP
-    {{- end }}
   selector:
     {{- include "technitium-dns.selectorLabels" . | nindent 4 }}
+    statefulset.kubernetes.io/pod-name: {{ include "technitium-dns.fullname" . }}-0
+{{- end }}

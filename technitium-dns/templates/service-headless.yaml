@@ -6,6 +6,9 @@ metadata:
     {{- include "technitium-dns.labels" . | nindent 4 }}
 spec:
   clusterIP: None
+  {{- if .Values.clustering.enabled }}
+  publishNotReadyAddresses: true
+  {{- end }}
   ports:
     - name: dns-udp
       port: 53
@@ -15,5 +18,15 @@ spec:
       port: 53
       targetPort: dns-tcp
       protocol: TCP
+    - name: web-http
+      port: {{ .Values.webConsole.httpPort }}
+      targetPort: web-http
+      protocol: TCP
+    {{- if or .Values.webConsole.enableHttps .Values.clustering.enabled }}
+    - name: web-https
+      port: {{ .Values.webConsole.httpsPort }}
+      targetPort: web-https
+      protocol: TCP
+    {{- end }}
   selector:
     {{- include "technitium-dns.selectorLabels" . | nindent 4 }}
