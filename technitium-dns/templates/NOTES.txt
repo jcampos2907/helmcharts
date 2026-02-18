@@ -1,0 +1,35 @@
+Technitium DNS Server has been deployed!
+
+1. DNS Web Console:
+{{- if .Values.ingress.enabled }}
+  Access the web console at:
+  {{- range $host := .Values.ingress.hosts }}
+    http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}
+  {{- end }}
+{{- else if contains "NodePort" .Values.serviceWeb.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "technitium-dns.fullname" . }}-web)
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.serviceWeb.type }}
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+  Watch the status with:
+    kubectl get svc --namespace {{ .Release.Namespace }} {{ include "technitium-dns.fullname" . }}-web -w
+{{- else }}
+  kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "technitium-dns.fullname" . }}-web {{ .Values.serviceWeb.httpPort }}:{{ .Values.serviceWeb.httpPort }}
+  Then visit: http://localhost:{{ .Values.serviceWeb.httpPort }}
+{{- end }}
+
+2. DNS Service:
+{{- if contains "LoadBalancer" .Values.serviceDns.type }}
+  DNS is exposed via LoadBalancer. Get the IP with:
+    kubectl get svc --namespace {{ .Release.Namespace }} {{ include "technitium-dns.fullname" . }}-dns -w
+{{- else if contains "NodePort" .Values.serviceDns.type }}
+  DNS is exposed via NodePort on all cluster nodes.
+{{- else }}
+  DNS is available internally at: {{ include "technitium-dns.fullname" . }}-dns.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.serviceDns.port }}
+{{- end }}
+
+3. Default credentials: admin / admin (change immediately!)
+{{- if and .Values.admin.enabled (not .Values.admin.existingSecret) .Values.admin.password }}
+   NOTE: An admin password was set via Helm values.
+{{- end }}

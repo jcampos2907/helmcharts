@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "technitium-dns.fullname" . }}-web
+  labels:
+    {{- include "technitium-dns.labels" . | nindent 4 }}
+  {{- with .Values.serviceWeb.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.serviceWeb.type }}
+  {{- if and (eq .Values.serviceWeb.type "LoadBalancer") .Values.serviceWeb.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.serviceWeb.loadBalancerIP }}
+  {{- end }}
+  ports:
+    - name: web-http
+      port: {{ .Values.serviceWeb.httpPort }}
+      targetPort: web-http
+      protocol: TCP
+      {{- if and (eq .Values.serviceWeb.type "NodePort") .Values.serviceWeb.nodePort }}
+      nodePort: {{ .Values.serviceWeb.nodePort }}
+      {{- end }}
+    {{- if .Values.webConsole.enableHttps }}
+    - name: web-https
+      port: {{ .Values.serviceWeb.httpsPort }}
+      targetPort: web-https
+      protocol: TCP
+    {{- end }}
+  selector:
+    {{- include "technitium-dns.selectorLabels" . | nindent 4 }}

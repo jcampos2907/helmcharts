@@ -1,0 +1,191 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "technitium-dns.fullname" . }}
+  labels:
+    {{- include "technitium-dns.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  serviceName: {{ include "technitium-dns.fullname" . }}-headless
+  selector:
+    matchLabels:
+      {{- include "technitium-dns.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "technitium-dns.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "technitium-dns.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: DNS_SERVER_DOMAIN
+              value: {{ .Values.serverDomain | quote }}
+            {{- if and .Values.admin.enabled .Values.admin.password }}
+            - name: DNS_SERVER_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "technitium-dns.password-secret" . }}
+                  key: password
+            {{- else if and .Values.admin.enabled .Values.admin.existingSecret }}
+            - name: DNS_SERVER_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.admin.existingSecret }}
+                  key: password
+            {{- end }}
+            - name: DNS_SERVER_PREFER_IPV6
+              value: {{ .Values.dnsConfig.preferIPv6 | quote }}
+            - name: DNS_SERVER_WEB_SERVICE_HTTP_PORT
+              value: {{ .Values.webConsole.httpPort | quote }}
+            {{- if .Values.webConsole.enableHttps }}
+            - name: DNS_SERVER_WEB_SERVICE_ENABLE_HTTPS
+              value: "true"
+            - name: DNS_SERVER_WEB_SERVICE_HTTPS_PORT
+              value: {{ .Values.webConsole.httpsPort | quote }}
+            {{- if .Values.webConsole.useSelfSignedCert }}
+            - name: DNS_SERVER_WEB_SERVICE_USE_SELF_SIGNED_CERT
+              value: "true"
+            {{- end }}
+            {{- end }}
+            {{- if .Values.webConsole.localAddresses }}
+            - name: DNS_SERVER_WEB_SERVICE_LOCAL_ADDRESSES
+              value: {{ .Values.webConsole.localAddresses | quote }}
+            {{- end }}
+            {{- if .Values.dnsConfig.recursion }}
+            - name: DNS_SERVER_RECURSION
+              value: {{ .Values.dnsConfig.recursion | quote }}
+            {{- end }}
+            {{- if .Values.dnsConfig.enableBlocking }}
+            - name: DNS_SERVER_ENABLE_BLOCKING
+              value: "true"
+            {{- end }}
+            {{- if .Values.dnsConfig.allowTxtBlockingReport }}
+            - name: DNS_SERVER_ALLOW_TXT_BLOCKING_REPORT
+              value: "true"
+            {{- end }}
+            {{- if .Values.dnsConfig.blockListUrls }}
+            - name: DNS_SERVER_BLOCK_LIST_URLS
+              value: {{ .Values.dnsConfig.blockListUrls | quote }}
+            {{- end }}
+            {{- if .Values.dnsConfig.forwarders }}
+            - name: DNS_SERVER_FORWARDERS
+              value: {{ .Values.dnsConfig.forwarders | quote }}
+            {{- end }}
+            {{- if .Values.dnsConfig.forwarderProtocol }}
+            - name: DNS_SERVER_FORWARDER_PROTOCOL
+              value: {{ .Values.dnsConfig.forwarderProtocol | quote }}
+            {{- end }}
+            {{- if .Values.dnsConfig.logUsingLocalTime }}
+            - name: DNS_SERVER_LOG_USING_LOCAL_TIME
+              value: "true"
+            {{- end }}
+            {{- range $key, $value := .Values.extraEnvVars }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          ports:
+            - name: dns-udp
+              containerPort: 53
+              protocol: UDP
+            - name: dns-tcp
+              containerPort: 53
+              protocol: TCP
+            - name: web-http
+              containerPort: {{ .Values.webConsole.httpPort }}
+              protocol: TCP
+            {{- if .Values.webConsole.enableHttps }}
+            - name: web-https
+              containerPort: {{ .Values.webConsole.httpsPort }}
+              protocol: TCP
+            {{- end }}
+            {{- if .Values.serviceDot.enabled }}
+            - name: dns-tls
+              containerPort: 853
+              protocol: TCP
+            - name: dns-quic
+              containerPort: 853
+              protocol: UDP
+            {{- end }}
+            {{- if .Values.serviceDoh.enabled }}
+            - name: doh-https
+              containerPort: 443
+              protocol: TCP
+            - name: doh-http
+              containerPort: 80
+              protocol: TCP
+            {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dns
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+  volumeClaimTemplates:
+    - metadata:
+        name: config
+        {{- with .Values.persistence.annotations }}
+        annotations:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      spec:
+        accessModes:
+          - {{ .Values.persistence.accessMode }}
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ .Values.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}
+  {{- else if and .Values.persistence.enabled .Values.persistence.existingClaim }}
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim }}
+  {{- else }}
+      volumes:
+        - name: config
+          emptyDir: {}
+  {{- end }}

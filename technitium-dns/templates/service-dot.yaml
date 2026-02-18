@@ -1,0 +1,28 @@
+{{- if .Values.serviceDot.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "technitium-dns.fullname" . }}-dot
+  labels:
+    {{- include "technitium-dns.labels" . | nindent 4 }}
+  {{- with .Values.serviceDot.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.serviceDot.type }}
+  {{- if and (eq .Values.serviceDot.type "LoadBalancer") .Values.serviceDot.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.serviceDot.loadBalancerIP }}
+  {{- end }}
+  ports:
+    - name: dns-tls
+      port: {{ .Values.serviceDot.port }}
+      targetPort: dns-tls
+      protocol: TCP
+    - name: dns-quic
+      port: {{ .Values.serviceDot.port }}
+      targetPort: dns-quic
+      protocol: UDP
+  selector:
+    {{- include "technitium-dns.selectorLabels" . | nindent 4 }}
+{{- end }}

@@ -1,0 +1,28 @@
+{{- if .Values.serviceDoh.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "technitium-dns.fullname" . }}-doh
+  labels:
+    {{- include "technitium-dns.labels" . | nindent 4 }}
+  {{- with .Values.serviceDoh.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.serviceDoh.type }}
+  {{- if and (eq .Values.serviceDoh.type "LoadBalancer") .Values.serviceDoh.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.serviceDoh.loadBalancerIP }}
+  {{- end }}
+  ports:
+    - name: doh-https
+      port: {{ .Values.serviceDoh.port }}
+      targetPort: doh-https
+      protocol: TCP
+    - name: doh-http
+      port: {{ .Values.serviceDoh.httpPort }}
+      targetPort: doh-http
+      protocol: TCP
+  selector:
+    {{- include "technitium-dns.selectorLabels" . | nindent 4 }}
+{{- end }}

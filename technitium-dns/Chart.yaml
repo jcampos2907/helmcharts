@@ -1,0 +1,13 @@
+apiVersion: v2
+name: technitium-dns
+version: 0.1.0
+appVersion: "14.3.0"
+description: A Helm chart for deploying Technitium DNS Server - an open source authoritative and recursive DNS server
+type: application
+home: https://technitium.com/dns/
+sources:
+  - https://github.com/TechnitiumSoftware/DnsServer
+  - https://hub.docker.com/r/technitium/dns-server
+icon: https://technitium.com/favicon.ico
+maintainers:
+  - name: Juan Campos

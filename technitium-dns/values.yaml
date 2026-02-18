@@ -1,0 +1,218 @@
+# -- Number of replicas
+replicaCount: 1
+
+image:
+  # -- Container image repository
+  repository: technitium/dns-server
+  # -- Container image tag
+  tag: ""
+  # -- Container image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# -- Override the chart name
+nameOverride: ""
+# -- Override the full release name
+fullnameOverride: ""
+
+# -- DNS server domain name used to identify itself
+serverDomain: "dns-server"
+
+# -- Admin password configuration
+admin:
+  # -- Enable admin password
+  enabled: true
+  # -- Admin password (ignored if existingSecret is set)
+  password: ""
+  # -- Use an existing secret for admin password (key: password)
+  existingSecret: ""
+
+# -- DNS server environment variables
+# These are only processed on first startup when no config exists
+dnsConfig:
+  # -- Prefer IPv6 for DNS queries
+  preferIPv6: false
+  # -- Recursion policy: Allow, Deny, AllowOnlyForPrivateNetworks, UseSpecifiedNetworkACL
+  recursion: ""
+  # -- Enable domain blocking
+  enableBlocking: false
+  # -- Allow TXT blocking report
+  allowTxtBlockingReport: false
+  # -- Comma-separated list of block list URLs
+  blockListUrls: ""
+  # -- Comma-separated forwarder addresses (e.g., "1.1.1.1, 8.8.8.8")
+  forwarders: ""
+  # -- Forwarder protocol: Udp, Tcp, Tls, Https, HttpsJson
+  forwarderProtocol: ""
+  # -- Use local time for logging instead of UTC
+  logUsingLocalTime: true
+
+# -- Web console configuration
+webConsole:
+  # -- HTTP port for web console
+  httpPort: 5380
+  # -- Enable HTTPS for web console
+  enableHttps: false
+  # -- HTTPS port for web console
+  httpsPort: 53443
+  # -- Use self-signed certificate for HTTPS
+  useSelfSignedCert: false
+  # -- Local addresses for web console to listen on (comma-separated)
+  localAddresses: ""
+
+# -- DNS service configuration
+serviceDns:
+  # -- Service type: ClusterIP, NodePort, LoadBalancer
+  type: LoadBalancer
+  # -- Fixed LoadBalancer IP (optional)
+  loadBalancerIP: ""
+  # -- External traffic policy: Cluster or Local
+  externalTrafficPolicy: Local
+  # -- DNS port
+  port: 53
+  # -- Node port for DNS (when type is NodePort)
+  nodePort: ""
+  # -- Annotations for the DNS service
+  annotations: {}
+
+# -- Web console service configuration
+serviceWeb:
+  # -- Service type: ClusterIP, NodePort, LoadBalancer
+  type: ClusterIP
+  # -- Fixed LoadBalancer IP (optional)
+  loadBalancerIP: ""
+  # -- HTTP port for web console
+  httpPort: 5380
+  # -- HTTPS port for web console (if enabled)
+  httpsPort: 53443
+  # -- Node port for web HTTP (when type is NodePort)
+  nodePort: ""
+  # -- Annotations for the web service
+  annotations: {}
+
+# -- DNS-over-TLS service configuration
+serviceDot:
+  # -- Enable DNS-over-TLS service
+  enabled: false
+  # -- Service type
+  type: LoadBalancer
+  # -- Fixed LoadBalancer IP (optional)
+  loadBalancerIP: ""
+  # -- DNS-over-TLS port
+  port: 853
+  # -- Annotations for the DoT service
+  annotations: {}
+
+# -- DNS-over-HTTPS service configuration
+serviceDoh:
+  # -- Enable DNS-over-HTTPS service
+  enabled: false
+  # -- Service type
+  type: LoadBalancer
+  # -- Fixed LoadBalancer IP (optional)
+  loadBalancerIP: ""
+  # -- HTTPS port
+  port: 443
+  # -- HTTP port (alternative)
+  httpPort: 80
+  # -- Annotations for the DoH service
+  annotations: {}
+
+# -- Ingress configuration for web console
+ingress:
+  # -- Enable ingress
+  enabled: false
+  # -- Ingress class name
+  className: ""
+  # -- Ingress annotations
+  annotations: {}
+  # -- Ingress hosts
+  hosts:
+    - host: technitium-dns.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- TLS configuration
+  tls: []
+
+# -- Persistence configuration
+persistence:
+  # -- Enable persistence
+  enabled: true
+  # -- Storage class (empty string uses default)
+  storageClass: ""
+  # -- Access mode
+  accessMode: ReadWriteOnce
+  # -- Storage size
+  size: 2Gi
+  # -- Use an existing PVC
+  existingClaim: ""
+  # -- Annotations for PVC
+  annotations:
+    helm.sh/resource-policy: keep
+
+# -- Extra environment variables as key-value pairs
+extraEnvVars: {}
+
+# -- Container resource limits and requests
+resources: {}
+  # limits:
+  #   cpu: 500m
+  #   memory: 512Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# -- Node selector
+nodeSelector: {}
+
+# -- Tolerations
+tolerations: []
+
+# -- Affinity rules
+affinity: {}
+
+# -- Pod annotations
+podAnnotations: {}
+
+# -- Pod security context
+podSecurityContext: {}
+
+# -- Container security context
+securityContext: {}
+
+# -- Liveness probe configuration
+livenessProbe:
+  httpGet:
+    path: /
+    port: web-http
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# -- Readiness probe configuration
+readinessProbe:
+  httpGet:
+    path: /
+    port: web-http
+  initialDelaySeconds: 15
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# -- Service account configuration
+serviceAccount:
+  # -- Create service account
+  create: false
+  # -- Annotations for the service account
+  annotations: {}
+  # -- Service account name (auto-generated if empty)
+  name: ""
+
+# -- Sysctl settings (needed for ephemeral port range)
+sysctls:
+  - name: net.ipv4.ip_local_port_range
+    value: "1024 65535"
