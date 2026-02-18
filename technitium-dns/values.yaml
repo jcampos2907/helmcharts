@@ -79,11 +79,15 @@ webConsole:
 # -- DNS service configuration
 serviceDns:
   # -- Service type: ClusterIP, NodePort, LoadBalancer
-  type: LoadBalancer
-  # -- Fixed LoadBalancer IP (optional)
+  # IMPORTANT: On K3s, LoadBalancer binds port 53 on ALL nodes via Klipper,
+  # which will conflict with existing DNS and break cluster resolution.
+  # Use ClusterIP (default) or NodePort for K3s clusters.
+  # Use LoadBalancer only with MetalLB or a cloud provider with a dedicated IP.
+  type: ClusterIP
+  # -- Fixed LoadBalancer IP (optional, required for LoadBalancer to avoid conflicts)
   loadBalancerIP: ""
-  # -- External traffic policy: Cluster or Local
-  externalTrafficPolicy: Local
+  # -- External traffic policy: Cluster or Local (only for LoadBalancer/NodePort)
+  externalTrafficPolicy: ""
   # -- DNS port
   port: 53
   # -- Node port for DNS (when type is NodePort)
