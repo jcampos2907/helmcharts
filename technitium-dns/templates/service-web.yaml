@@ -10,6 +10,9 @@ metadata:
   {{- end }}
 spec:
   type: {{ .Values.serviceWeb.type }}
+  {{- if and (eq .Values.serviceWeb.type "LoadBalancer") .Values.serviceWeb.loadBalancerClass }}
+  loadBalancerClass: {{ .Values.serviceWeb.loadBalancerClass }}
+  {{- end }}
   {{- if and (eq .Values.serviceWeb.type "LoadBalancer") .Values.serviceWeb.loadBalancerIP }}
   loadBalancerIP: {{ .Values.serviceWeb.loadBalancerIP }}
   {{- end }}

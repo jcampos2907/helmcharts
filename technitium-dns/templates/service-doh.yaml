@@ -11,6 +11,9 @@ metadata:
   {{- end }}
 spec:
   type: {{ .Values.serviceDoh.type }}
+  {{- if and (eq .Values.serviceDoh.type "LoadBalancer") .Values.serviceDoh.loadBalancerClass }}
+  loadBalancerClass: {{ .Values.serviceDoh.loadBalancerClass }}
+  {{- end }}
   {{- if and (eq .Values.serviceDoh.type "LoadBalancer") .Values.serviceDoh.loadBalancerIP }}
   loadBalancerIP: {{ .Values.serviceDoh.loadBalancerIP }}
   {{- end }}

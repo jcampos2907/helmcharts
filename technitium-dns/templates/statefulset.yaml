@@ -53,21 +53,6 @@ spec:
       topologySpreadConstraints:
         {{- toYaml .Values.clustering.topologySpreadConstraints | nindent 8 }}
       {{- end }}
-      {{- if .Values.clustering.enabled }}
-      initContainers:
-        - name: set-dns-domain
-          image: "busybox:1.36"
-          command:
-            - sh
-            - -c
-            - |
-              HEADLESS_SVC="{{ include "technitium-dns.fullname" . }}-headless.{{ .Release.Namespace }}.svc.cluster.local"
-              POD_FQDN="${HOSTNAME}.${HEADLESS_SVC}"
-              echo "${POD_FQDN}" > /etc/dns-domain/domain
-          volumeMounts:
-            - name: dns-domain
-              mountPath: /etc/dns-domain
-      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           {{- with .Values.securityContext }}
@@ -76,16 +61,15 @@ spec:
           {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- if .Values.clustering.enabled }}
-          command:
-            - sh
-            - -c
-            - |
-              export DNS_SERVER_DOMAIN=$(cat /etc/dns-domain/domain)
-              exec dotnet /opt/technitium/dns/DnsServerApp.dll
-          {{- end }}
           env:
-            {{- if not .Values.clustering.enabled }}
+            {{- if .Values.clustering.enabled }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: DNS_SERVER_DOMAIN
+              value: "$(POD_NAME).{{ include "technitium-dns.fullname" . }}-headless.{{ .Release.Namespace }}.svc.cluster.local"
+            {{- else }}
             - name: DNS_SERVER_DOMAIN
               value: {{ .Values.serverDomain | quote }}
             {{- end }}
@@ -196,10 +180,6 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/dns
-            {{- if .Values.clustering.enabled }}
-            - name: dns-domain
-              mountPath: /etc/dns-domain
-            {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -207,11 +187,6 @@ spec:
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- if .Values.clustering.enabled }}
-      volumes:
-        - name: dns-domain
-          emptyDir: {}
       {{- end }}
   {{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
   volumeClaimTemplates:
@@ -235,7 +210,7 @@ spec:
         - name: config
           persistentVolumeClaim:
             claimName: {{ .Values.persistence.existingClaim }}
-  {{- else if not .Values.clustering.enabled }}
+  {{- else }}
       volumes:
         - name: config
           emptyDir: {}

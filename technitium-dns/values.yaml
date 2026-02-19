@@ -84,6 +84,8 @@ serviceDns:
   # Use ClusterIP (default) or NodePort for K3s clusters.
   # Use LoadBalancer only with MetalLB or a cloud provider with a dedicated IP.
   type: ClusterIP
+  # -- LoadBalancer class (e.g., "tailscale" for Tailscale operator)
+  loadBalancerClass: ""
   # -- Fixed LoadBalancer IP (optional, required for LoadBalancer to avoid conflicts)
   loadBalancerIP: ""
   # -- External traffic policy: Cluster or Local (only for LoadBalancer/NodePort)
@@ -99,6 +101,8 @@ serviceDns:
 serviceWeb:
   # -- Service type: ClusterIP, NodePort, LoadBalancer
   type: ClusterIP
+  # -- LoadBalancer class (e.g., "tailscale" for Tailscale operator)
+  loadBalancerClass: ""
   # -- Fixed LoadBalancer IP (optional)
   loadBalancerIP: ""
   # -- HTTP port for web console
@@ -116,6 +120,8 @@ serviceDot:
   enabled: false
   # -- Service type
   type: LoadBalancer
+  # -- LoadBalancer class (e.g., "tailscale" for Tailscale operator)
+  loadBalancerClass: ""
   # -- Fixed LoadBalancer IP (optional)
   loadBalancerIP: ""
   # -- DNS-over-TLS port
@@ -126,9 +132,11 @@ serviceDot:
 # -- DNS-over-HTTPS service configuration
 serviceDoh:
   # -- Enable DNS-over-HTTPS service
-  enabled: false
+  enabled: true
   # -- Service type
   type: LoadBalancer
+  # -- LoadBalancer class (e.g., "tailscale" for Tailscale operator)
+  loadBalancerClass: ""
   # -- Fixed LoadBalancer IP (optional)
   loadBalancerIP: ""
   # -- HTTPS port

@@ -40,8 +40,8 @@ Technitium DNS Server has been deployed!
   After all pods are running, you must configure clustering via the web console.
 
   a) Access the PRIMARY node (pod-0) web console:
-     kubectl port-forward --namespace {{ .Release.Namespace }} pod/{{ include "technitium-dns.fullname" . }}-0 {{ .Values.webConsole.httpsPort }}:{{ .Values.webConsole.httpsPort }}
-     Then visit: https://localhost:{{ .Values.webConsole.httpsPort }}
+     kubectl port-forward --namespace {{ .Release.Namespace }} pod/{{ include "technitium-dns.fullname" . }}-0 {{ .Values.webConsole.httpPort }}:{{ .Values.webConsole.httpPort }}
+     Then visit: http://localhost:{{ .Values.webConsole.httpPort }}
      (Or use the primary service: {{ include "technitium-dns.fullname" . }}-web-primary)
 
   b) On the primary node (pod-0), go to Settings > Clustering and initialize
@@ -53,7 +53,7 @@ Technitium DNS Server has been deployed!
      {{- $fullname := include "technitium-dns.fullname" . }}
      {{- range $i := until (int .Values.replicaCount) }}
      {{- if ne $i 0 }}
-     kubectl port-forward --namespace {{ $.Release.Namespace }} pod/{{ $fullname }}-{{ $i }} {{ $.Values.webConsole.httpsPort }}:{{ $.Values.webConsole.httpsPort }}
+     kubectl port-forward --namespace {{ $.Release.Namespace }} pod/{{ $fullname }}-{{ $i }} {{ $.Values.webConsole.httpPort }}:{{ $.Values.webConsole.httpPort }}
      {{- end }}
      {{- end }}
 
