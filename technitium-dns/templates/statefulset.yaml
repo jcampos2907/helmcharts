@@ -130,6 +130,10 @@ spec:
             - name: DNS_SERVER_LOG_USING_LOCAL_TIME
               value: "true"
             {{- end }}
+            {{- if and .Values.serviceDoh.enabled .Values.serviceDoh.reverseProxy.enabled }}
+            - name: DNS_SERVER_OPTIONAL_PROTOCOL_DNS_OVER_HTTP
+              value: "true"
+            {{- end }}
             {{- range $key, $value := .Values.extraEnvVars }}
             - name: {{ $key }}
               value: {{ $value | quote }}
@@ -164,6 +168,11 @@ spec:
             - name: doh-http
               containerPort: 80
               protocol: TCP
+            {{- if .Values.serviceDoh.reverseProxy.enabled }}
+            - name: doh-proxy
+              containerPort: {{ .Values.serviceDoh.reverseProxy.port }}
+              protocol: TCP
+            {{- end }}
             {{- end }}
           {{- with .Values.livenessProbe }}
           livenessProbe:

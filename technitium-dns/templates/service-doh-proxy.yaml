@@ -1,0 +1,17 @@
+{{- if and .Values.serviceDoh.enabled .Values.serviceDoh.reverseProxy.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "technitium-dns.fullname" . }}-doh-proxy
+  labels:
+    {{- include "technitium-dns.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: doh-proxy
+      port: {{ .Values.serviceDoh.reverseProxy.port }}
+      targetPort: doh-proxy
+      protocol: TCP
+  selector:
+    {{- include "technitium-dns.selectorLabels" . | nindent 4 }}
+{{- end }}

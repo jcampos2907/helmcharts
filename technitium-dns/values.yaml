@@ -145,6 +145,13 @@ serviceDoh:
   httpPort: 80
   # -- Annotations for the DoH service
   annotations: {}
+  # -- Enable DNS-over-HTTP on port 8053 for use with a TLS-terminating reverse proxy.
+  # When enabled, the reverse proxy routes /dns-query to port 8053 over plain HTTP
+  # while handling TLS termination itself.
+  reverseProxy:
+    enabled: true
+    # -- Port for DNS-over-HTTP behind reverse proxy
+    port: 8053
 
 # -- Ingress configuration for web console
 ingress:

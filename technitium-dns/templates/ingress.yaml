@@ -37,5 +37,14 @@ spec:
                 port:
                   name: web-http
           {{- end }}
+          {{- if and $.Values.serviceDoh.enabled $.Values.serviceDoh.reverseProxy.enabled }}
+          - path: /dns-query
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "technitium-dns.fullname" $ }}-doh-proxy
+                port:
+                  name: doh-proxy
+          {{- end }}
     {{- end }}
 {{- end }}
