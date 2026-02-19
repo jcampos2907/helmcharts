@@ -62,8 +62,12 @@ Technitium DNS Server has been deployed!
      Set the primary address to:
        {{ include "technitium-dns.fullname" . }}-0.{{ include "technitium-dns.fullname" . }}-headless.{{ .Release.Namespace }}.svc.cluster.local
 
-  Pod FQDNs for reference:
-  {{- range $i := until (int .Values.replicaCount) }}
-    {{ $fullname }}-{{ $i }}.{{ $fullname }}-headless.{{ $.Release.Namespace }}.svc.cluster.local
-  {{- end }}
+  f) Get the STATIC ClusterIPs for each node (use these in the cluster zone):
+     kubectl get svc --namespace {{ .Release.Namespace }} -l app={{ include "technitium-dns.name" . }} | grep node
+     {{- range $i := until (int .Values.replicaCount) }}
+     {{ $fullname }}-node-{{ $i }}: kubectl get svc --namespace {{ $.Release.Namespace }} {{ $fullname }}-node-{{ $i }} -o jsonpath='{.spec.clusterIP}'
+     {{- end }}
+
+     These ClusterIPs are STATIC and survive pod restarts. Use them as the
+     node IP addresses in the Technitium cluster zone A records.
 {{- end }}
