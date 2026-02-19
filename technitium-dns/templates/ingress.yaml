@@ -33,7 +33,11 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
+                {{- if and $.Values.clustering.enabled (gt (int $.Values.replicaCount) 1) }}
+                name: {{ include "technitium-dns.fullname" $ }}-web-primary
+                {{- else }}
                 name: {{ include "technitium-dns.fullname" $ }}-web
+                {{- end }}
                 port:
                   name: web-http
           {{- end }}
