@@ -30,12 +30,23 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if and .Values.clustering.enabled .Values.clustering.podAntiAffinity (gt (int .Values.replicaCount) 1) }}
+      {{- if and .Values.clustering.enabled .Values.clustering.hostNetwork }}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- end }}
+      {{- if and .Values.clustering.enabled (gt (int .Values.replicaCount) 1) }}
       affinity:
         {{- with .Values.affinity }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
         podAntiAffinity:
+          {{- if .Values.clustering.hostNetwork }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  {{- include "technitium-dns.selectorLabels" . | nindent 18 }}
+              topologyKey: kubernetes.io/hostname
+          {{- else if .Values.clustering.podAntiAffinity }}
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
               podAffinityTerm:
@@ -43,6 +54,7 @@ spec:
                   matchLabels:
                     {{- include "technitium-dns.selectorLabels" . | nindent 20 }}
                 topologyKey: kubernetes.io/hostname
+          {{- end }}
       {{- else }}
       {{- with .Values.affinity }}
       affinity:

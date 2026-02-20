@@ -1,6 +1,6 @@
 apiVersion: v2
 name: technitium-dns
-version: 0.3.0
+version: 0.4.0
 appVersion: "14.3.0"
 description: A Helm chart for deploying Technitium DNS Server - an open source authoritative and recursive DNS server
 type: application

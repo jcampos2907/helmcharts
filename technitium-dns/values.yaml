@@ -29,6 +29,12 @@ clustering:
   # -- Enable clustering support (automatically configures per-pod domain names,
   # HTTPS with self-signed certs, and pod anti-affinity)
   enabled: true
+  # -- Use host network so pods get the node's IP (static, survives restarts).
+  # Requires one pod per node. Pod anti-affinity is enforced as required.
+  # WARNING: Binds ports 53, 5380, 53443 directly on the node. Will conflict
+  # with anything else using port 53 (CoreDNS on host, Traefik UDP, systemd-resolved).
+  # Only enable if you know those ports are free on your nodes.
+  hostNetwork: false
   # -- Use pod anti-affinity to spread replicas across nodes
   podAntiAffinity: true
   # -- Topology spread constraints for cluster pods
