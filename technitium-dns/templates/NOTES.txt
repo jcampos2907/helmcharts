@@ -62,7 +62,22 @@ Technitium DNS Server has been deployed!
      Set the primary address to:
        {{ include "technitium-dns.fullname" . }}-0.{{ include "technitium-dns.fullname" . }}-headless.{{ .Release.Namespace }}.svc.cluster.local
 
-  f) Get the STATIC ClusterIPs for each node (use these in the cluster zone):
+  f) Get the node IPs for the cluster zone A records:
+     {{- if .Values.clustering.hostNetwork }}
+
+     HOST NETWORK MODE: Pods use the node's IP directly.
+     Get each pod's node IP with:
+     {{- range $i := until (int .Values.replicaCount) }}
+     {{ $fullname }}-{{ $i }}: kubectl get pod --namespace {{ $.Release.Namespace }} {{ $fullname }}-{{ $i }} -o jsonpath='{.status.hostIP}'
+     {{- end }}
+
+     These IPs are STABLE as long as pods stay pinned to the same nodes.
+     To ensure pods always schedule on the same node:
+       1. Label {{ .Values.replicaCount }} nodes: kubectl label node <name> technitium-dns=true
+       2. Set nodeSelector: { technitium-dns: "true" } in your values
+       3. Use local-path storage (K3s default) - PV node affinity locks
+          each pod to its original node after first scheduling
+     {{- else }}
      kubectl get svc --namespace {{ .Release.Namespace }} -l app={{ include "technitium-dns.name" . }} | grep node
      {{- range $i := until (int .Values.replicaCount) }}
      {{ $fullname }}-node-{{ $i }}: kubectl get svc --namespace {{ $.Release.Namespace }} {{ $fullname }}-node-{{ $i }} -o jsonpath='{.spec.clusterIP}'
@@ -70,4 +85,5 @@ Technitium DNS Server has been deployed!
 
      These ClusterIPs are STATIC and survive pod restarts. Use them as the
      node IP addresses in the Technitium cluster zone A records.
+     {{- end }}
 {{- end }}

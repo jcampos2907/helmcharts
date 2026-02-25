@@ -39,6 +39,19 @@ clustering:
   podAntiAffinity: true
   # -- Topology spread constraints for cluster pods
   topologySpreadConstraints: []
+  # -- Per-pod service configuration for stable node discovery.
+  # When using Tailscale, each pod gets a stable Tailscale IP via its hostname.
+  # Use these IPs in the Technitium cluster zone A records - they never change.
+  perPodService:
+    # -- Service type for per-pod services
+    type: ClusterIP
+    # -- LoadBalancer class (e.g., "tailscale")
+    loadBalancerClass: ""
+    # -- Hostname prefix for per-pod services (suffix is -node-0, -node-1, etc.)
+    # Used with tailscale.com/hostname annotation when loadBalancerClass is set.
+    hostnamePrefix: ""
+    # -- Annotations for per-pod services
+    annotations: {}
 
 # -- Admin password configuration
 admin:
@@ -212,6 +225,9 @@ tolerations: []
 
 # -- Affinity rules
 affinity: {}
+
+# -- Priority class name for pod scheduling priority
+priorityClassName: ""
 
 # -- Pod annotations
 podAnnotations: {}

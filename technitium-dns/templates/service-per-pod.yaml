@@ -10,8 +10,20 @@ metadata:
   name: {{ $fullname }}-node-{{ $i }}
   labels:
     {{- $labels | nindent 4 }}
+  {{- if or $.Values.clustering.perPodService.annotations (and $.Values.clustering.perPodService.loadBalancerClass $.Values.clustering.perPodService.hostnamePrefix) }}
+  annotations:
+    {{- with $.Values.clustering.perPodService.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if and $.Values.clustering.perPodService.loadBalancerClass $.Values.clustering.perPodService.hostnamePrefix }}
+    tailscale.com/hostname: {{ $.Values.clustering.perPodService.hostnamePrefix }}-node-{{ $i }}
+    {{- end }}
+  {{- end }}
 spec:
-  type: ClusterIP
+  type: {{ $.Values.clustering.perPodService.type }}
+  {{- if and (eq $.Values.clustering.perPodService.type "LoadBalancer") $.Values.clustering.perPodService.loadBalancerClass }}
+  loadBalancerClass: {{ $.Values.clustering.perPodService.loadBalancerClass }}
+  {{- end }}
   ports:
     - name: dns-udp
       port: 53
