@@ -1,0 +1,66 @@
+# Exactly one scheduler: replicas is fixed and the strategy is Recreate so an upgrade never overlaps two pods.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ravenhold.fullname" . }}-analytics
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" . "component" "analytics") | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "analytics") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "analytics") | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: analytics
+          image: {{ include "ravenhold.image" (dict "image" .Values.analytics.image "ctx" .) }}
+          imagePullPolicy: {{ .Values.analytics.image.pullPolicy }}
+          env:
+            {{- range $k, $v := .Values.analytics.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- if .Values.rsshub.enabled }}
+            - name: RSSHUB_URL
+              value: http://{{ include "ravenhold.fullname" . }}-rsshub:1200
+            {{- end }}
+            {{- if .Values.ibGateway.live.enabled }}
+            - name: IBKR_HOST
+              value: {{ include "ravenhold.fullname" . }}-ib-gateway
+            - name: IBKR_PORT
+              value: "4003"
+            {{- end }}
+            {{- if .Values.ibGateway.paper.enabled }}
+            - name: IBKR_PAPER_HOST
+              value: {{ include "ravenhold.fullname" . }}-ib-gateway-paper
+            - name: IBKR_PAPER_PORT
+              value: "4004"
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.analytics.existingSecret }}
+          volumeMounts:
+            - name: cache
+              mountPath: /home/app/.cache/stocktracker
+            # Holds the KILL switch file that stops new paper orders.
+            - name: state
+              mountPath: /home/app/.stocktracker
+          {{- with .Values.analytics.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: cache
+          emptyDir: {}
+        - name: state
+          emptyDir: {}

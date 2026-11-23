@@ -1,0 +1,151 @@
+# Ravenhold chart values.
+# This chart ships NO database and NO credentials: every secret comes from an existing Secret that you create
+# (for example through the Vault Secrets Operator). Each component names its Secret in `existingSecret`; every key
+# of that Secret becomes an environment variable of the container (envFrom), so key names are the variable names.
+
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+# Empty image tags fall back to the Chart appVersion, so one release bumps all four images together.
+
+api:
+  image:
+    repository: jicamposr/ravenhold-api
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  # Secret keys read by the API: ConnectionStrings__Default (PostgreSQL with pgvector), Auth__AllowedSubjects__0,
+  # Encryption__ActiveMasterKeyId, Encryption__MasterKeys__<id>, GatewayScreen__{Live,Paper}__VncPassword (optional).
+  existingSecret: ravenhold-api
+  # Plain configuration. The API refuses to start outside Development without an authority and an allow-list.
+  env:
+    Auth__Authority: ""      # your OIDC issuer, e.g. the homelab Keycloak realm URL
+    Auth__Audience: ravenhold
+  resources: {}
+
+frontend:
+  image:
+    repository: jicamposr/ravenhold-frontend
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  # Secret keys read by the frontend: SESSION_SECRET (long random string that encrypts the session cookies).
+  existingSecret: ravenhold-frontend
+  # API_URL is not set here: the templates point it at the in-cluster api Service.
+  env:
+    OIDC_ISSUER: ""
+    OIDC_CLIENT_ID: ravenhold
+    OIDC_REDIRECT_URI: https://ravenhold.famcr.org/auth/callback
+    OIDC_SCOPE: openid profile email
+  resources: {}
+
+docs:
+  image:
+    repository: jicamposr/ravenhold-docs
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  # The docs site is static and holds no secret.
+  env: {}
+  resources: {}
+
+analytics:
+  image:
+    repository: jicamposr/ravenhold-analytics
+    tag: ""
+    pullPolicy: IfNotPresent
+  # No replicaCount value on purpose: the scheduler is always exactly 1 replica with the Recreate strategy. Two
+  # schedulers against one database would duplicate every job and could double paper orders.
+  # Secret keys read by analytics: DATABASE_URL, ANTHROPIC_API_KEY, SEC_USER_AGENT, Encryption__ActiveMasterKeyId,
+  # Encryption__MasterKeys__<id>, and any other variable listed in analytics/.env.example.
+  existingSecret: ravenhold-analytics
+  # Paper trading stays off until you flip TRADING_ENABLED; limits have no default (a blank one stops `trading run`).
+  # RSSHUB_URL and IBKR_*_HOST/PORT are filled in by the templates from the rsshub and ibGateway blocks.
+  env:
+    TZ: America/New_York
+    TRADING_ENABLED: "false"
+    TRADING_MODE: propose
+  resources: {}
+
+# The migration Job: a pre-install/pre-upgrade hook that runs the API image with --migrate-only and exits. The API
+# Deployment sets Migrations__RunOnBoot=false, so replicas never race to migrate. It reads the api existingSecret
+# (connection string and master keys), so it needs no secret of its own.
+migrations:
+  image:
+    repository: jicamposr/ravenhold-api
+    tag: ""
+    pullPolicy: IfNotPresent
+  backoffLimit: 2
+  resources: {}
+
+# RSSHub turns X accounts into feeds that analytics ingests. Only analytics reaches it, inside the cluster.
+rsshub:
+  enabled: true
+  image:
+    repository: diygod/rsshub
+    tag: "2026-10-27"
+    pullPolicy: IfNotPresent
+  # Optional Secret (TWITTER_AUTH_TOKEN); the pod starts without it.
+  existingSecret: ravenhold-rsshub
+  env:
+    NODE_ENV: production
+    CACHE_TYPE: memory
+    CACHE_EXPIRE: "600"
+  resources: {}
+
+# IB Gateway, headless. Both are off by default so empty credentials never trigger repeated failed logins.
+# Secret keys: TWS_USERID, TWS_PASSWORD, and optionally VNC_SERVER_PASSWORD.
+ibGateway:
+  live:
+    enabled: false
+    image:
+      repository: gnzsnz/ib-gateway
+      tag: "10.50.1f"
+      pullPolicy: IfNotPresent
+    existingSecret: ravenhold-ib-gateway
+    # The live session must stay READ_ONLY_API=yes: IB itself then rejects any order.
+    env:
+      TRADING_MODE: live
+      READ_ONLY_API: "yes"
+      TWOFA_TIMEOUT_ACTION: restart
+      RELOGIN_AFTER_TWOFA_TIMEOUT: "yes"
+      AUTO_RESTART_TIME: "11:45 PM"
+      EXISTING_SESSION_DETECTED_ACTION: primary
+      TWS_ACCEPT_INCOMING: accept
+      TIME_ZONE: America/New_York
+      TZ: America/New_York
+    resources: {}
+  paper:
+    enabled: false
+    image:
+      repository: gnzsnz/ib-gateway
+      tag: "10.50.1f"
+      pullPolicy: IfNotPresent
+    existingSecret: ravenhold-ib-gateway-paper
+    env:
+      TRADING_MODE: paper
+      READ_ONLY_API: "no"
+      TWOFA_TIMEOUT_ACTION: restart
+      RELOGIN_AFTER_TWOFA_TIMEOUT: "yes"
+      AUTO_RESTART_TIME: "11:50 PM"
+      EXISTING_SESSION_DETECTED_ACTION: primary
+      TWS_ACCEPT_INCOMING: accept
+      TIME_ZONE: America/New_York
+      TZ: America/New_York
+    resources: {}
+
+# Ingress: ravenhold host serves `/` from the frontend and `/gateway-screen` (WebSocket) from the api;
+# the docs host serves the docs site. Add `tls` entries when cert-manager issues the certificates.
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  host: ravenhold.famcr.org
+  docsHost: docs.ravenhold.famcr.org
+  tls: []
+  #  - secretName: ravenhold-tls
+  #    hosts:
+  #      - ravenhold.famcr.org
+  #      - docs.ravenhold.famcr.org

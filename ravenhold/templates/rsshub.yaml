@@ -1,0 +1,56 @@
+{{- if .Values.rsshub.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ravenhold.fullname" . }}-rsshub
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" . "component" "rsshub") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "rsshub") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "rsshub") | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: rsshub
+          image: {{ .Values.rsshub.image.repository }}:{{ .Values.rsshub.image.tag }}
+          imagePullPolicy: {{ .Values.rsshub.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 1200
+          env:
+            {{- range $k, $v := .Values.rsshub.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.rsshub.existingSecret }}
+                optional: true
+          {{- with .Values.rsshub.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ravenhold.fullname" . }}-rsshub
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" . "component" "rsshub") | nindent 4 }}
+spec:
+  selector:
+    {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "rsshub") | nindent 4 }}
+  ports:
+    - name: http
+      port: 1200
+      targetPort: http
+{{- end }}

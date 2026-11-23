@@ -1,0 +1,68 @@
+{{- range $kind, $gw := dict "live" .Values.ibGateway.live "paper" .Values.ibGateway.paper }}
+{{- if $gw.enabled }}
+{{- $name := printf "%s-ib-gateway%s" (include "ravenhold.fullname" $) (ternary "" "-paper" (eq $kind "live")) }}
+{{- $component := printf "ib-gateway-%s" $kind }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" $ "component" $component) | nindent 4 }}
+spec:
+  # One IB session per account: a second pod would fight the first for the login.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "ravenhold.selectorLabels" (dict "ctx" $ "component" $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ravenhold.selectorLabels" (dict "ctx" $ "component" $component) | nindent 8 }}
+    spec:
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: ib-gateway
+          image: {{ $gw.image.repository }}:{{ $gw.image.tag }}
+          imagePullPolicy: {{ $gw.image.pullPolicy }}
+          ports:
+            - name: api
+              containerPort: {{ ternary 4003 4004 (eq $kind "live") }}
+            - name: vnc
+              containerPort: 5900
+          env:
+            {{- range $k, $v := $gw.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ $gw.existingSecret }}
+          {{- with $gw.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" $ "component" $component) | nindent 4 }}
+spec:
+  selector:
+    {{- include "ravenhold.selectorLabels" (dict "ctx" $ "component" $component) | nindent 4 }}
+  ports:
+    - name: api
+      port: {{ ternary 4003 4004 (eq $kind "live") }}
+      targetPort: api
+    - name: vnc
+      port: 5900
+      targetPort: vnc
+{{- end }}
+{{- end }}

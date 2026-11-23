@@ -1,0 +1,14 @@
+Ravenhold {{ .Chart.AppVersion }} is deployed.
+
+  App:  https://{{ .Values.ingress.host }}
+  Docs: https://{{ .Values.ingress.docsHost }}
+
+This chart creates no database and no Secret. Before the first install create these Secrets in {{ .Release.Namespace }}:
+  {{ .Values.api.existingSecret }}        ConnectionStrings__Default, Auth__AllowedSubjects__0, Encryption__*
+  {{ .Values.frontend.existingSecret }}   SESSION_SECRET
+  {{ .Values.analytics.existingSecret }}  DATABASE_URL, ANTHROPIC_API_KEY, SEC_USER_AGENT, Encryption__*
+The database needs the vector and pg_trgm extensions created by a superuser before the migration Job runs.
+
+The migration Job runs as a pre-install/pre-upgrade hook with the API image and --migrate-only.
+Analytics always runs as 1 replica (Recreate). Kill switch for paper orders:
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "ravenhold.fullname" . }}-analytics -- touch /home/app/.stocktracker/KILL

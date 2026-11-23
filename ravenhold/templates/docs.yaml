@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ravenhold.fullname" . }}-docs
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" . "component" "docs") | nindent 4 }}
+spec:
+  replicas: {{ .Values.docs.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "docs") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "docs") | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: docs
+          image: {{ include "ravenhold.image" (dict "image" .Values.docs.image "ctx" .) }}
+          imagePullPolicy: {{ .Values.docs.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          {{- with .Values.docs.env }}
+          env:
+            {{- range $k, $v := . }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          {{- end }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+          {{- with .Values.docs.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ravenhold.fullname" . }}-docs
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" . "component" "docs") | nindent 4 }}
+spec:
+  selector:
+    {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "docs") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
