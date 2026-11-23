@@ -259,12 +259,21 @@ spec:
                   echo "cluster-ip-sync: cannot resolve $svc, retrying"
                 else
                   want="$cip,$POD_IP"
-                  have=$(echo "$state" | tr '{' '\n' | grep '"state":"Self"' \
-                    | sed -n 's/.*"ipAddresses":\[\([^]]*\)\].*/\1/p' | tr -d '"')
-                  if [ "$have" != "$want" ]; then
+                  self=$(echo "$state" | tr '{' '\n' | grep '"state":"Self"')
+                  have=$(echo "$self" | sed -n 's/.*"ipAddresses":\[\([^]]*\)\].*/\1/p' | tr -d '"')
+                  # The node's own view can be right while the primary never got the
+                  # change (a secondary pushes it once; if the primary is restarting at
+                  # that moment the push is lost). The cluster zone, served from the
+                  # primary's data, shows what the rest of the cluster believes.
+                  name=$(echo "$self" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
+                  zone=$(nslookup "$name" 127.0.0.1 2>/dev/null | awk '/^Address: /{print $2}' | grep -v ':53$' | sort | tr '\n' ',')
+                  wantsorted=$(echo "$want" | tr ',' '\n' | sort | tr '\n' ',')
+                  now=$(date +%s)
+                  if [ "$have" != "$want" ] || { [ -n "$zone" ] && [ "$zone" != "$wantsorted" ] && [ $((now - ${last:-0})) -ge 120 ]; }; then
                     r=$(curl -s -m30 "$API_URL/api/admin/cluster/updateIpAddress" \
                       --data-urlencode token="$token" --data-urlencode ipAddresses="$want")
-                    echo "cluster-ip-sync: $(date -u +%FT%TZ) registered IPs ${have:-none} -> $want: $(echo "$r" | grep -o '"status":"[a-z]*"')"
+                    last=$now
+                    echo "cluster-ip-sync: $(date -u +%FT%TZ) registered ${have:-none} (cluster zone: ${zone:-?}) -> $want: $(echo "$r" | grep -o '"status":"[a-z]*"')"
                   fi
                 fi
                 sleep "$INTERVAL"
