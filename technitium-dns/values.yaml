@@ -52,6 +52,27 @@ clustering:
     hostnamePrefix: ""
     # -- Annotations for per-pod services
     annotations: {}
+  # -- Sidecar that keeps each node's registered cluster IPs current
+  # (when hostNetwork is false). Technitium checks the source IP of NOTIFY and
+  # zone-transfer traffic against the registered node IPs, but a pod's traffic
+  # comes from its pod IP, which changes on every restart. The sidecar registers
+  # "<per-pod Service ClusterIP>,<pod IP>" and re-registers after a restart.
+  # Use the per-pod Service ClusterIPs when you initialize/join the cluster.
+  # Needs admin.password or admin.existingSecret (it logs in as admin).
+  ipSync:
+    # -- Enable the IP sync sidecar
+    enabled: true
+    # -- Image with sh, curl and nslookup
+    image: curlimages/curl:8.11.1
+    # -- Seconds between checks
+    intervalSeconds: 30
+    # -- Sidecar resources
+    resources:
+      requests:
+        cpu: 5m
+        memory: 8Mi
+      limits:
+        memory: 32Mi
 
 # -- Admin password configuration
 admin:
