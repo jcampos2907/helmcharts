@@ -6,13 +6,30 @@
 nameOverride: ""
 fullnameOverride: ""
 
+# Pull secret for the private registry (a kubernetes.io/dockerconfigjson Secret you create), e.g. [{name: ravenhold-registry}].
 imagePullSecrets: []
 
-# Empty image tags fall back to the Chart appVersion, so one release bumps all four images together.
+# The registry every Ravenhold image comes from: <registry>/<component> (api, frontend, docs, analytics).
+# The default is the owner's tailnet-only registry on nacho-3; a component's image.repository overrides it.
+registry: nacho-3.tail4f4c7b.ts.net/ravenhold
+
+# PostgreSQL (with the vector and pg_trgm extensions). With `existingSecret` set (for example the `<cluster>-app` Secret
+# a CloudNativePG Cluster creates, keys `username` and `password`), the chart builds ConnectionStrings__Default for the
+# api and migration Job and DATABASE_URL for analytics. Leave it empty to put those variables in the component Secrets.
+database:
+  existingSecret: ""
+  usernameKey: username
+  passwordKey: password
+  host: ""
+  port: 5432
+  name: ravenhold
+  sslMode: prefer
+
+# Empty image tags fall back to the Chart appVersion. CI pins each component's tag (the commit it was built from).
 
 api:
   image:
-    repository: jicamposr/ravenhold-api
+    repository: ""   # empty: <registry>/api
     tag: ""
     pullPolicy: IfNotPresent
   replicaCount: 1
@@ -27,7 +44,7 @@ api:
 
 frontend:
   image:
-    repository: jicamposr/ravenhold-frontend
+    repository: ""   # empty: <registry>/frontend
     tag: ""
     pullPolicy: IfNotPresent
   replicaCount: 1
@@ -43,7 +60,7 @@ frontend:
 
 docs:
   image:
-    repository: jicamposr/ravenhold-docs
+    repository: ""   # empty: <registry>/docs
     tag: ""
     pullPolicy: IfNotPresent
   replicaCount: 1
@@ -53,7 +70,7 @@ docs:
 
 analytics:
   image:
-    repository: jicamposr/ravenhold-analytics
+    repository: ""   # empty: <registry>/analytics
     tag: ""
     pullPolicy: IfNotPresent
   # No replicaCount value on purpose: the scheduler is always exactly 1 replica with the Recreate strategy. Two
@@ -74,7 +91,7 @@ analytics:
 # (connection string and master keys), so it needs no secret of its own.
 migrations:
   image:
-    repository: jicamposr/ravenhold-api
+    repository: ""   # empty: the api image (repository and tag)
     tag: ""
     pullPolicy: IfNotPresent
   backoffLimit: 2

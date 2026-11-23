@@ -22,7 +22,7 @@ spec:
       {{- end }}
       containers:
         - name: migrate
-          image: {{ include "ravenhold.image" (dict "image" .Values.migrations.image "ctx" .) }}
+          image: {{ include "ravenhold.migrationsImage" . }}
           imagePullPolicy: {{ .Values.migrations.image.pullPolicy }}
           args: ["--migrate-only"]
           env:

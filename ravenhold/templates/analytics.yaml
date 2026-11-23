@@ -23,12 +23,17 @@ spec:
       {{- end }}
       containers:
         - name: analytics
-          image: {{ include "ravenhold.image" (dict "image" .Values.analytics.image "ctx" .) }}
+          image: {{ include "ravenhold.image" (dict "image" .Values.analytics.image "ctx" . "component" "analytics") }}
           imagePullPolicy: {{ .Values.analytics.image.pullPolicy }}
           env:
             {{- range $k, $v := .Values.analytics.env }}
             - name: {{ $k }}
               value: {{ $v | quote }}
+            {{- end }}
+            {{- if .Values.database.existingSecret }}
+            {{- include "ravenhold.dbCreds" . | nindent 12 }}
+            - name: DATABASE_URL
+              value: {{ printf "postgresql://$(DB_USER):$(DB_PASSWORD)@%s:%v/%s?sslmode=%s" .Values.database.host .Values.database.port .Values.database.name .Values.database.sslMode | quote }}
             {{- end }}
             {{- if .Values.rsshub.enabled }}
             - name: RSSHUB_URL

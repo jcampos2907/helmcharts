@@ -20,7 +20,7 @@ spec:
       {{- end }}
       containers:
         - name: frontend
-          image: {{ include "ravenhold.image" (dict "image" .Values.frontend.image "ctx" .) }}
+          image: {{ include "ravenhold.image" (dict "image" .Values.frontend.image "ctx" . "component" "frontend") }}
           imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
           ports:
             - name: http

@@ -53,7 +53,34 @@ app.kubernetes.io/component: {{ .component }}
 Image reference; an empty tag falls back to the Chart appVersion. Call with (dict "image" .Values.api.image "ctx" .).
 */}}
 {{- define "ravenhold.image" -}}
-{{- printf "%s:%s" .image.repository (default .ctx.Chart.AppVersion .image.tag) }}
+{{- $repo := .image.repository | default (printf "%s/%s" .ctx.Values.registry .component) }}
+{{- printf "%s:%s" $repo (default .ctx.Chart.AppVersion .image.tag) }}
+{{- end }}
+
+{{/*
+The migration Job's image: its own repository/tag when set, otherwise exactly the api image.
+*/}}
+{{- define "ravenhold.migrationsImage" -}}
+{{- $img := dict "repository" (.Values.migrations.image.repository | default .Values.api.image.repository) "tag" (.Values.migrations.image.tag | default .Values.api.image.tag) }}
+{{- include "ravenhold.image" (dict "image" $img "ctx" . "component" "api") }}
+{{- end }}
+
+{{/*
+Database credentials as env vars, for the $(DB_USER)/$(DB_PASSWORD) references below. Empty without database.existingSecret.
+*/}}
+{{- define "ravenhold.dbCreds" -}}
+{{- with .Values.database.existingSecret }}
+- name: DB_USER
+  valueFrom:
+    secretKeyRef:
+      name: {{ . }}
+      key: {{ $.Values.database.usernameKey }}
+- name: DB_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ . }}
+      key: {{ $.Values.database.passwordKey }}
+{{- end }}
 {{- end }}
 
 {{/*
@@ -61,6 +88,11 @@ Environment of the api container and the migration Job: plain values, then every
 The Job deliberately never sets Migrations__RunOnBoot, so the boot block (migrations) runs in it.
 */}}
 {{- define "ravenhold.apiEnv" -}}
+{{- if .Values.database.existingSecret }}
+{{- include "ravenhold.dbCreds" . }}
+- name: ConnectionStrings__Default
+  value: {{ printf "Host=%s;Port=%v;Database=%s;Username=$(DB_USER);Password=$(DB_PASSWORD);SSL Mode=%s" (required "database.host is required with database.existingSecret" .Values.database.host) .Values.database.port .Values.database.name (.Values.database.sslMode | title) | quote }}
+{{- end }}
 {{- range $k, $v := .Values.api.env }}
 - name: {{ $k }}
   value: {{ $v | quote }}
