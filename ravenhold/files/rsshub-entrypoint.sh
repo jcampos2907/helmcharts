@@ -52,7 +52,9 @@ stop_child() {
 trap 'stop_child; exit 143' TERM INT
 
 while kill -0 "$child" 2>/dev/null; do
-  sleep "$poll"
+  # In the background so the TERM trap fires at once instead of after the sleep.
+  sleep "$poll" &
+  wait $!
   if [ "$(file_sum)" != "$started_sum" ]; then
     echo "RSSHub token file changed; restarting RSSHub to pick it up." >&2
     stop_child
