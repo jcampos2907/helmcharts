@@ -1,4 +1,13 @@
 # Exactly one scheduler: replicas is fixed and the strategy is Recreate so an upgrade never overlaps two pods.
+# The pod's own ServiceAccount has no API token mounted; the federation token below is a separate projected volume.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "ravenhold.fullname" . }}-analytics
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" . "component" "analytics") | nindent 4 }}
+automountServiceAccountToken: false
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,6 +26,7 @@ spec:
       labels:
         {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "analytics") | nindent 8 }}
     spec:
+      serviceAccountName: {{ include "ravenhold.fullname" . }}-analytics
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -34,6 +44,26 @@ spec:
             {{- include "ravenhold.dbCreds" . | nindent 12 }}
             - name: DATABASE_URL
               value: {{ printf "postgresql://$(DB_USER):$(DB_PASSWORD)@%s:%v/%s?sslmode=%s" .Values.database.host .Values.database.port .Values.database.name .Values.database.sslMode | quote }}
+            {{- end }}
+            {{- if .Values.analytics.anthropicFederation.enabled }}
+            {{- with .Values.analytics.anthropicFederation }}
+            # Workload identity federation: the SDK exchanges the projected token for an Anthropic access token.
+            # An ANTHROPIC_API_KEY in the secret still wins over this.
+            - name: ANTHROPIC_IDENTITY_TOKEN_FILE
+              value: /var/run/secrets/anthropic.com/token
+            - name: ANTHROPIC_FEDERATION_RULE_ID
+              value: {{ required "analytics.anthropicFederation.ruleId is required when enabled" .ruleId | quote }}
+            - name: ANTHROPIC_ORGANIZATION_ID
+              value: {{ required "analytics.anthropicFederation.organizationId is required when enabled" .organizationId | quote }}
+            {{- if .serviceAccountId }}
+            - name: ANTHROPIC_SERVICE_ACCOUNT_ID
+              value: {{ .serviceAccountId | quote }}
+            {{- end }}
+            {{- if .workspaceId }}
+            - name: ANTHROPIC_WORKSPACE_ID
+              value: {{ .workspaceId | quote }}
+            {{- end }}
+            {{- end }}
             {{- end }}
             {{- if .Values.rsshub.enabled }}
             - name: RSSHUB_URL
@@ -64,6 +94,11 @@ spec:
             # so the every-minute job writes harmlessly instead of logging an error each minute.
             - name: rsshub-token
               mountPath: /run/rsshub
+            {{- if .Values.analytics.anthropicFederation.enabled }}
+            - name: anthropic-token
+              mountPath: /var/run/secrets/anthropic.com
+              readOnly: true
+            {{- end }}
           {{- with .Values.analytics.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -110,6 +145,17 @@ spec:
         - name: rsshub-token
           emptyDir:
             medium: Memory
+        {{- if .Values.analytics.anthropicFederation.enabled }}
+        # Kubernetes projected service-account token for Anthropic workload identity federation; the kubelet
+        # rotates it and the SDK re-reads the file.
+        - name: anthropic-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: {{ .Values.analytics.anthropicFederation.audience | quote }}
+                  expirationSeconds: {{ .Values.analytics.anthropicFederation.expirationSeconds }}
+                  path: token
+        {{- end }}
         {{- if .Values.rsshub.enabled }}
         - name: rsshub-entrypoint
           configMap:

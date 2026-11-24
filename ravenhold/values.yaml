@@ -85,6 +85,18 @@ analytics:
     TRADING_ENABLED: "false"
     TRADING_MODE: propose
   resources: {}
+  # Claude through Anthropic workload identity federation instead of a static ANTHROPIC_API_KEY. When enabled, the
+  # pod gets a projected service-account token and the SDK exchanges it for short-lived access tokens. Create the
+  # federation rule (fdrl_...) in the Anthropic Console with this cluster's issuer and this ServiceAccount as subject.
+  # An ANTHROPIC_API_KEY in the analytics secret still takes precedence.
+  anthropicFederation:
+    enabled: false
+    ruleId: ""            # ANTHROPIC_FEDERATION_RULE_ID (fdrl_...)
+    organizationId: ""    # ANTHROPIC_ORGANIZATION_ID (uuid)
+    serviceAccountId: ""  # optional ANTHROPIC_SERVICE_ACCOUNT_ID
+    workspaceId: ""       # optional ANTHROPIC_WORKSPACE_ID
+    audience: https://api.anthropic.com
+    expirationSeconds: 3600
 
 # The migration Job: a pre-install/pre-upgrade hook that runs the API image with --migrate-only and exits. The API
 # Deployment sets Migrations__RunOnBoot=false, so replicas never race to migrate. It reads the api existingSecret
