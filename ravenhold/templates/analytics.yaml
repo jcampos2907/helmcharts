@@ -37,7 +37,7 @@ spec:
             {{- end }}
             {{- if .Values.rsshub.enabled }}
             - name: RSSHUB_URL
-              value: http://{{ include "ravenhold.fullname" . }}-rsshub:1200
+              value: http://127.0.0.1:1200
             {{- end }}
             {{- if .Values.ibGateway.live.enabled }}
             - name: IBKR_HOST
@@ -60,12 +60,58 @@ spec:
             # Holds the KILL switch file that stops new paper orders.
             - name: state
               mountPath: /home/app/.stocktracker
+            # The job rsshub-token-sync writes the X auth_token file here. It stays mounted when rsshub is off,
+            # so the every-minute job writes harmlessly instead of logging an error each minute.
+            - name: rsshub-token
+              mountPath: /run/rsshub
           {{- with .Values.analytics.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+        {{- if .Values.rsshub.enabled }}
+        # RSSHub reads its X token only from the environment at start. The entrypoint exports it from the shared
+        # file and exits when the file changes; the kubelet restarts the container with the new token.
+        - name: rsshub
+          image: {{ .Values.rsshub.image.repository }}:{{ .Values.rsshub.image.tag }}
+          imagePullPolicy: {{ .Values.rsshub.image.pullPolicy }}
+          command: ["/bin/sh", "/scripts/entrypoint.sh"]
+          ports:
+            - name: http
+              containerPort: 1200
+          env:
+            {{- range $k, $v := .Values.rsshub.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          {{- if .Values.rsshub.existingSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.rsshub.existingSecret }}
+                optional: true
+          {{- end }}
+          volumeMounts:
+            - name: rsshub-token
+              mountPath: /run/rsshub
+              readOnly: true
+            - name: rsshub-entrypoint
+              mountPath: /scripts
+              readOnly: true
+          {{- with .Values.rsshub.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
       volumes:
         - name: cache
           emptyDir: {}
         - name: state
           emptyDir: {}
+        # Shared by analytics (writes) and rsshub (reads); memory-backed so the token never reaches a disk.
+        - name: rsshub-token
+          emptyDir:
+            medium: Memory
+        {{- if .Values.rsshub.enabled }}
+        - name: rsshub-entrypoint
+          configMap:
+            name: {{ include "ravenhold.fullname" . }}-rsshub-entrypoint
+        {{- end }}

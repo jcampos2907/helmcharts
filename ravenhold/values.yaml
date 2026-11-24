@@ -97,15 +97,19 @@ migrations:
   backoffLimit: 2
   resources: {}
 
-# RSSHub turns X accounts into feeds that analytics ingests. Only analytics reaches it, inside the cluster.
+# RSSHub turns X accounts into feeds that analytics ingests. It is a second container in the analytics pod, not a
+# Deployment of its own: pods cannot share an emptyDir, and the analytics job rsshub-token-sync writes the X
+# auth_token (saved in Settings > Connections) to a file on one. RSSHub's entrypoint exports it at start and exits
+# when the file changes, so the kubelet restarts it with the new token. It inherits the analytics pod's Recreate
+# strategy and single replica. Analytics reaches it at http://127.0.0.1:1200.
 rsshub:
   enabled: true
   image:
     repository: diygod/rsshub
     tag: "2026-10-27"
     pullPolicy: IfNotPresent
-  # Optional Secret (TWITTER_AUTH_TOKEN); the pod starts without it.
-  existingSecret: ravenhold-rsshub
+  # Optional legacy Secret (TWITTER_AUTH_TOKEN); the token now comes from the vault. Leave empty to skip it.
+  existingSecret: ""
   env:
     NODE_ENV: production
     CACHE_TYPE: memory
