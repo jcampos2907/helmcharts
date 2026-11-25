@@ -1,0 +1,158 @@
+{{- if .Values.gatewayController.enabled }}
+{{- $gc := .Values.gatewayController }}
+{{- $name := printf "%s-gateway-controller" (include "ravenhold.fullname" .) }}
+{{- $label := "ravenhold.famcr.org/managed-by" }}
+{{- $value := "gateway-controller" }}
+# The per-user IB Gateway controller: `gateways reconcile` keeps one live/paper gateway pair (Deployment, Service,
+# Secret) per user in this namespace. Its ServiceAccount is the only one in the chart that holds Kubernetes rights.
+# Namespaced Role only (never a ClusterRole), and an admission policy that rejects its writes to any object that
+# does not carry the label it puts on its own objects.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" . "component" "gateway-controller") | nindent 4 }}
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" . "component" "gateway-controller") | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["create", "get", "list", "watch", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["services", "secrets"]
+    verbs: ["create", "get", "list", "watch", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" . "component" "gateway-controller") | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+# ValidatingAdmissionPolicy is cluster-scoped by definition (there is no namespaced form); it is the one
+# non-namespaced object of the chart, it matches only this ServiceAccount and is bound to this namespace only.
+# Needs Kubernetes 1.30+ (admissionregistration.k8s.io/v1).
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $name }}-{{ .Release.Namespace }}
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" . "component" "gateway-controller") | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["deployments"]
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["services", "secrets"]
+  matchConditions:
+    - name: only-the-gateway-controller
+      expression: {{ printf "request.userInfo.username == 'system:serviceaccount:%s:%s'" .Release.Namespace $name | quote }}
+  validations:
+    - expression: {{ printf "(request.operation == 'DELETE' ? oldObject : object).metadata.?labels['%s'].orValue('') == '%s'" $label $value | quote }}
+      message: {{ printf "the gateway controller may only write objects labelled %s=%s" $label $value | quote }}
+    - expression: {{ printf "request.operation != 'UPDATE' || oldObject.metadata.?labels['%s'].orValue('') == '%s'" $label $value | quote }}
+      message: {{ printf "the gateway controller may only change objects that already carry %s=%s" $label $value | quote }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $name }}-{{ .Release.Namespace }}
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" . "component" "gateway-controller") | nindent 4 }}
+spec:
+  policyName: {{ $name }}-{{ .Release.Namespace }}
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ .Release.Namespace | quote }}
+---
+# Exactly one controller: two would race on the same pairs. Recreate so an upgrade never overlaps two pods.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" . "component" "gateway-controller") | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "gateway-controller") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "gateway-controller") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $name }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: gateway-controller
+          image: {{ include "ravenhold.image" (dict "image" $gc.image "ctx" . "component" "analytics") }}
+          imagePullPolicy: {{ $gc.image.pullPolicy }}
+          command: ["python", "-m", "stocktracker_analytics", "gateways", "reconcile", "--every", {{ $gc.interval | quote }}]
+          env:
+            {{- if .Values.database.existingSecret }}
+            {{- include "ravenhold.dbCreds" . | nindent 12 }}
+            - name: DATABASE_URL
+              value: {{ printf "postgresql://$(DB_USER):$(DB_PASSWORD)@%s:%v/%s?sslmode=%s" .Values.database.host .Values.database.port .Values.database.name .Values.database.sslMode | quote }}
+            {{- end }}
+            - name: GATEWAY_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: GATEWAY_IMAGE
+              value: {{ printf "%s:%s" $gc.gateway.image.repository $gc.gateway.image.tag | quote }}
+            - name: GATEWAY_IMAGE_PULL_POLICY
+              value: {{ $gc.gateway.image.pullPolicy | quote }}
+            {{- with $gc.gateway.resources }}
+            - name: GATEWAY_RESOURCES
+              value: {{ toJson . | quote }}
+            {{- end }}
+            {{- with $gc.gateway.extraEnv }}
+            - name: GATEWAY_EXTRA_ENV
+              value: {{ toJson . | quote }}
+            {{- end }}
+            {{- with $gc.gateway.liveEnv }}
+            - name: GATEWAY_LIVE_ENV
+              value: {{ toJson . | quote }}
+            {{- end }}
+            {{- with $gc.gateway.paperEnv }}
+            - name: GATEWAY_PAPER_ENV
+              value: {{ toJson . | quote }}
+            {{- end }}
+          # DATABASE_URL (unless built above) and the Encryption__* keys that open the vault come from the analytics Secret.
+          envFrom:
+            - secretRef:
+                name: {{ $gc.existingSecret | default .Values.analytics.existingSecret }}
+          {{- with $gc.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

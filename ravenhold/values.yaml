@@ -169,6 +169,30 @@ ibGateway:
       TZ: America/New_York
     resources: {}
 
+# The per-user IB Gateway controller (off by default). When enabled it runs `gateways reconcile --every <interval>` from
+# the analytics image with its own ServiceAccount, a namespaced Role (deployments, services, secrets) and an admission
+# policy that only lets it write objects labelled ravenhold.famcr.org/managed-by=gateway-controller. The policy needs
+# Kubernetes 1.30+. The static ibGateway pair above keeps working beside it; see deploy/helm/README.md to retire it.
+gatewayController:
+  enabled: false
+  image:
+    repository: ""   # empty: <registry>/analytics
+    tag: ""
+    pullPolicy: IfNotPresent
+  interval: 15       # seconds between passes (a gateway_pair notification also triggers one)
+  existingSecret: ""   # empty: analytics.existingSecret (DATABASE_URL, Encryption__*)
+  resources: {}
+  # What each user's gateway pods look like (GATEWAY_* variables of the controller).
+  gateway:
+    image:
+      repository: gnzsnz/ib-gateway
+      tag: "10.50.1f"
+      pullPolicy: IfNotPresent
+    resources: {}
+    extraEnv: {}   # added to both gateways of every pair
+    liveEnv: {}
+    paperEnv: {}
+
 # Ingress: ravenhold host serves `/` from the frontend and `/gateway-screen` (WebSocket) from the api;
 # the docs host serves the docs site. Add `tls` entries when cert-manager issues the certificates.
 ingress:
