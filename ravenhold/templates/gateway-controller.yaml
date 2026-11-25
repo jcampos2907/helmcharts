@@ -155,4 +155,36 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+
+---
+# The controller's gateway pods hold a user's broker session and a VNC desktop: only the api and analytics pods
+# may reach their API ports (4003 live, 4004 paper) and the VNC port the relay uses (5900).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-pods
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" . "component" "gateway-controller") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{ $label }}: {{ $value }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "api") | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "analytics") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 4003
+        - protocol: TCP
+          port: 4004
+        - protocol: TCP
+          port: 5900
 {{- end }}
