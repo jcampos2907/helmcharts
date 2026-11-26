@@ -41,6 +41,12 @@ api:
     Auth__Authority: ""      # your OIDC issuer, e.g. the homelab Keycloak realm URL
     Auth__Audience: ravenhold
   resources: {}
+  # Mimir's live chat calls Claude from the API (since mimir-live). When enabled, the api pod runs as the analytics
+  # ServiceAccount (the federation rule's subject) and gets the same projected token, path, audience and IDs as
+  # analytics (from analytics.anthropicFederation, which must be enabled too). ANTHROPIC_API_KEY and
+  # Anthropic__ApiKey are pinned empty in the pod, so a key in the api Secret can never override federation.
+  anthropicFederation:
+    enabled: false
 
 frontend:
   image:

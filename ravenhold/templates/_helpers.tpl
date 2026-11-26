@@ -110,3 +110,50 @@ The Job deliberately never sets Migrations__RunOnBoot, so the boot block (migrat
   value: "5900"
 {{- end }}
 {{- end }}
+
+{{/*
+The analytics ServiceAccount: the identity Anthropic workload identity federation trusts (the rule's subject is
+system:serviceaccount:<namespace>:<this name>). The api pod runs as it too when api.anthropicFederation.enabled.
+*/}}
+{{- define "ravenhold.analyticsServiceAccountName" -}}
+{{- include "ravenhold.fullname" . }}-analytics
+{{- end }}
+
+{{/*
+Anthropic workload identity federation, shared by analytics and the api so both use exactly the same token file,
+audience and IDs (all from analytics.anthropicFederation). Env entries, the volumeMount and the projected volume.
+*/}}
+{{- define "ravenhold.anthropicFederationEnv" -}}
+{{- with .Values.analytics.anthropicFederation -}}
+- name: ANTHROPIC_IDENTITY_TOKEN_FILE
+  value: /var/run/secrets/anthropic.com/token
+- name: ANTHROPIC_FEDERATION_RULE_ID
+  value: {{ required "analytics.anthropicFederation.ruleId is required when enabled" .ruleId | quote }}
+- name: ANTHROPIC_ORGANIZATION_ID
+  value: {{ required "analytics.anthropicFederation.organizationId is required when enabled" .organizationId | quote }}
+{{- if .serviceAccountId }}
+- name: ANTHROPIC_SERVICE_ACCOUNT_ID
+  value: {{ .serviceAccountId | quote }}
+{{- end }}
+{{- if .workspaceId }}
+- name: ANTHROPIC_WORKSPACE_ID
+  value: {{ .workspaceId | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "ravenhold.anthropicFederationMount" -}}
+- name: anthropic-token
+  mountPath: /var/run/secrets/anthropic.com
+  readOnly: true
+{{- end }}
+
+{{- define "ravenhold.anthropicFederationVolume" -}}
+- name: anthropic-token
+  projected:
+    sources:
+      - serviceAccountToken:
+          audience: {{ .Values.analytics.anthropicFederation.audience | quote }}
+          expirationSeconds: {{ .Values.analytics.anthropicFederation.expirationSeconds }}
+          path: token
+{{- end }}

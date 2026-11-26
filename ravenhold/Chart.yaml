@@ -1,7 +1,7 @@
 apiVersion: v2
 name: ravenhold
-version: 0.5.0
-appVersion: "0.5.0"
+version: 0.6.0
+appVersion: "0.6.0"
 description: A Helm chart for deploying Ravenhold - the market tracker and research app (API, frontend, docs, analytics scheduler, RSSHub and optional IB Gateways). Bring your own PostgreSQL (pgvector) and Secrets.
 type: application
 maintainers:

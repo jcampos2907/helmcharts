@@ -1,3 +1,14 @@
+{{- $federation := .Values.api.anthropicFederation.enabled }}
+{{- if and $federation (not .Values.analytics.anthropicFederation.enabled) }}
+{{- fail "api.anthropicFederation.enabled needs analytics.anthropicFederation.enabled: the api reuses the analytics identity, rule and token settings" }}
+{{- end }}
+{{- if $federation }}
+{{- range $k := list "ANTHROPIC_API_KEY" "Anthropic__ApiKey" "ANTHROPIC_IDENTITY_TOKEN_FILE" "ANTHROPIC_FEDERATION_RULE_ID" "ANTHROPIC_ORGANIZATION_ID" "ANTHROPIC_SERVICE_ACCOUNT_ID" "ANTHROPIC_WORKSPACE_ID" }}
+{{- if hasKey $.Values.api.env $k }}
+{{- fail (printf "api.env.%s is not allowed with api.anthropicFederation.enabled: the chart sets it" $k) }}
+{{- end }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,6 +25,11 @@ spec:
       labels:
         {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "api") | nindent 8 }}
     spec:
+      {{- if $federation }}
+      # Mimir's live chat calls Claude from the api: it runs as the analytics ServiceAccount, the subject the
+      # Anthropic federation rule trusts. That ServiceAccount mounts no Kubernetes API token.
+      serviceAccountName: {{ include "ravenhold.analyticsServiceAccountName" . }}
+      {{- end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -30,9 +46,23 @@ spec:
             - name: Migrations__RunOnBoot
               value: "false"
             {{- include "ravenhold.apiEnv" . | nindent 12 }}
+            {{- if $federation }}
+            # Workload identity federation, the same token file, audience and IDs as analytics. The api prefers a key
+            # over federation, so both key names it reads are pinned empty: an explicit env entry wins over envFrom,
+            # so a key left in the api Secret can never reach the process.
+            {{- include "ravenhold.anthropicFederationEnv" . | nindent 12 }}
+            - name: ANTHROPIC_API_KEY
+              value: ""
+            - name: Anthropic__ApiKey
+              value: ""
+            {{- end }}
           envFrom:
             - secretRef:
                 name: {{ .Values.api.existingSecret }}
+          {{- if $federation }}
+          volumeMounts:
+            {{- include "ravenhold.anthropicFederationMount" . | nindent 12 }}
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /healthz
@@ -46,6 +76,10 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      {{- if $federation }}
+      volumes:
+        {{- include "ravenhold.anthropicFederationVolume" . | nindent 8 }}
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service
