@@ -104,6 +104,18 @@ analytics:
     audience: https://api.anthropic.com
     expirationSeconds: 3600
 
+# The bootstrap Job: a plain Job (not a hook) that runs `python -m stocktracker_analytics.bootstrap` on the analytics
+# image, with the analytics Secret, database, IB and Anthropic federation settings. Its name changes with the analytics
+# image tag, so each deploy runs it once; it exits in seconds when nothing is missing. On a fresh install it waits up to
+# ownerWaitMinutes for the first sign-in and a watchlist item. activeDeadlineSeconds is derived: that wait plus ~2 h.
+bootstrap:
+  enabled: true
+  ownerWaitMinutes: 1440
+  backoffLimit: 1
+  resources:
+    limits:
+      memory: 2Gi
+
 # The migration Job: a pre-install/pre-upgrade hook that runs the API image with --migrate-only and exits. The API
 # Deployment sets Migrations__RunOnBoot=false, so replicas never race to migrate. It reads the api existingSecret
 # (connection string and master keys), so it needs no secret of its own.

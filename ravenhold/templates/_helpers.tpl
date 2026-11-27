@@ -157,3 +157,53 @@ audience and IDs (all from analytics.anthropicFederation). Env entries, the volu
           expirationSeconds: {{ .Values.analytics.anthropicFederation.expirationSeconds }}
           path: token
 {{- end }}
+
+{{/*
+Environment shared by the analytics Deployment and the bootstrap Job: the plain analytics.env values, the database
+URL with its credentials, and the Anthropic federation variables. RSSHUB_URL is added by the Deployment alone
+(the Job has no RSSHub sidecar). The IBKR variables follow in "ravenhold.analyticsIbEnv".
+*/}}
+{{- define "ravenhold.analyticsEnv" -}}
+{{- range $k, $v := .Values.analytics.env }}
+- name: {{ $k }}
+  value: {{ $v | quote }}
+{{- end }}
+{{- if .Values.database.existingSecret }}
+{{- include "ravenhold.dbCreds" . }}
+- name: DATABASE_URL
+  value: {{ printf "postgresql://$(DB_USER):$(DB_PASSWORD)@%s:%v/%s?sslmode=%s" .Values.database.host .Values.database.port .Values.database.name .Values.database.sslMode | quote }}
+{{- end }}
+{{- if .Values.analytics.anthropicFederation.enabled }}
+{{- /* Workload identity federation: the SDK exchanges the projected token for an Anthropic access token.
+       An ANTHROPIC_API_KEY in the secret still wins over this. */}}
+{{ include "ravenhold.anthropicFederationEnv" . }}
+{{- end }}
+{{- end }}
+
+{{/*
+The IB Gateway endpoints analytics connects to, for whichever gateways are enabled.
+*/}}
+{{- define "ravenhold.analyticsIbEnv" -}}
+{{- if .Values.ibGateway.live.enabled }}
+- name: IBKR_HOST
+  value: {{ include "ravenhold.fullname" . }}-ib-gateway
+- name: IBKR_PORT
+  value: "4003"
+{{- end }}
+{{- if .Values.ibGateway.paper.enabled }}
+- name: IBKR_PAPER_HOST
+  value: {{ include "ravenhold.fullname" . }}-ib-gateway-paper
+- name: IBKR_PAPER_PORT
+  value: "4004"
+{{- end }}
+{{- end }}
+
+{{/*
+The bootstrap Job's name: suffixed with a short hash of the analytics image, so every new image renders a new Job
+(a Job's pod template is immutable) while the same image renders the same name (never .Release.Revision).
+NOTES.txt uses this same template for the log command.
+*/}}
+{{- define "ravenhold.bootstrapJobName" -}}
+{{- $image := include "ravenhold.image" (dict "image" .Values.analytics.image "ctx" . "component" "analytics") }}
+{{- printf "%s-bootstrap-%s" (include "ravenhold.fullname" . | trunc 44 | trimSuffix "-") (sha256sum $image | trunc 8) }}
+{{- end }}

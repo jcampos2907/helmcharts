@@ -36,36 +36,12 @@ spec:
           image: {{ include "ravenhold.image" (dict "image" .Values.analytics.image "ctx" . "component" "analytics") }}
           imagePullPolicy: {{ .Values.analytics.image.pullPolicy }}
           env:
-            {{- range $k, $v := .Values.analytics.env }}
-            - name: {{ $k }}
-              value: {{ $v | quote }}
-            {{- end }}
-            {{- if .Values.database.existingSecret }}
-            {{- include "ravenhold.dbCreds" . | nindent 12 }}
-            - name: DATABASE_URL
-              value: {{ printf "postgresql://$(DB_USER):$(DB_PASSWORD)@%s:%v/%s?sslmode=%s" .Values.database.host .Values.database.port .Values.database.name .Values.database.sslMode | quote }}
-            {{- end }}
-            {{- if .Values.analytics.anthropicFederation.enabled }}
-            # Workload identity federation: the SDK exchanges the projected token for an Anthropic access token.
-            # An ANTHROPIC_API_KEY in the secret still wins over this.
-            {{- include "ravenhold.anthropicFederationEnv" . | nindent 12 }}
-            {{- end }}
+            {{- include "ravenhold.analyticsEnv" . | nindent 12 }}
             {{- if .Values.rsshub.enabled }}
             - name: RSSHUB_URL
               value: http://127.0.0.1:1200
             {{- end }}
-            {{- if .Values.ibGateway.live.enabled }}
-            - name: IBKR_HOST
-              value: {{ include "ravenhold.fullname" . }}-ib-gateway
-            - name: IBKR_PORT
-              value: "4003"
-            {{- end }}
-            {{- if .Values.ibGateway.paper.enabled }}
-            - name: IBKR_PAPER_HOST
-              value: {{ include "ravenhold.fullname" . }}-ib-gateway-paper
-            - name: IBKR_PAPER_PORT
-              value: "4004"
-            {{- end }}
+            {{- include "ravenhold.analyticsIbEnv" . | nindent 12 }}
           envFrom:
             - secretRef:
                 name: {{ .Values.analytics.existingSecret }}

@@ -1,0 +1,56 @@
+{{- if .Values.bootstrap.enabled }}
+# A plain Job, deliberately not a Helm or Argo hook: a hook would hold `helm install` (default --timeout 5m) or the
+# Argo sync for as long as the bootstrap waits and works. The name carries a hash of the analytics image, so every
+# new image renders a new Job and one that finds nothing missing exits in seconds. Read its log with
+# `kubectl logs job/<name>`.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "ravenhold.bootstrapJobName" . }}
+  labels:
+    {{- include "ravenhold.labels" (dict "ctx" . "component" "bootstrap") | nindent 4 }}
+spec:
+  backoffLimit: {{ .Values.bootstrap.backoffLimit }}
+  # The owner wait plus ~2 h of work, with a margin.
+  activeDeadlineSeconds: {{ add (mul (int .Values.bootstrap.ownerWaitMinutes) 60) 7800 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ravenhold.selectorLabels" (dict "ctx" . "component" "bootstrap") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "ravenhold.analyticsServiceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: bootstrap
+          image: {{ include "ravenhold.image" (dict "image" .Values.analytics.image "ctx" . "component" "analytics") }}
+          imagePullPolicy: {{ .Values.analytics.image.pullPolicy }}
+          command: ["python", "-m", "stocktracker_analytics.bootstrap"]
+          env:
+            {{- include "ravenhold.analyticsEnv" . | nindent 12 }}
+            {{- include "ravenhold.analyticsIbEnv" . | nindent 12 }}
+            - name: BOOTSTRAP_OWNER_WAIT_MINUTES
+              value: {{ .Values.bootstrap.ownerWaitMinutes | int | quote }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.analytics.existingSecret }}
+          volumeMounts:
+            - name: cache
+              mountPath: /home/app/.cache/stocktracker
+            {{- if .Values.analytics.anthropicFederation.enabled }}
+            {{- include "ravenhold.anthropicFederationMount" . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.bootstrap.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: cache
+          emptyDir: {}
+        {{- if .Values.analytics.anthropicFederation.enabled }}
+        {{- include "ravenhold.anthropicFederationVolume" . | nindent 8 }}
+        {{- end }}
+{{- end }}

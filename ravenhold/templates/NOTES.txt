@@ -10,5 +10,7 @@ This chart creates no database and no Secret. Before the first install create th
 The database needs the vector and pg_trgm extensions created by a superuser before the migration Job runs.
 
 The migration Job runs as a pre-install/pre-upgrade hook with the API image and --migrate-only.
+The bootstrap Job{{ if not .Values.bootstrap.enabled }} (bootstrap.enabled=false, not rendered){{ end }} is a plain Job named for the analytics image; read its log with:
+  kubectl -n {{ .Release.Namespace }} logs job/{{ include "ravenhold.bootstrapJobName" . }}
 Analytics always runs as 1 replica (Recreate). Kill switch for paper orders:
   kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "ravenhold.fullname" . }}-analytics -- touch /home/app/.stocktracker/KILL
